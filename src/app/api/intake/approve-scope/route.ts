@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { DraftISMSScope } from '@/lib/agents/intake-agent'
+import type { InsertTables, Tables, Json } from '@/types/supabase'
+
+type UserRow = Pick<Tables<'users'>, 'id' | 'organization_id' | 'role'>
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +23,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .select('id, organization_id, role')
       .eq('auth_user_id', user.id)
-      .single()
+      .single<UserRow>()
 
     if (userError || !userData) {
       return NextResponse.json(
@@ -52,22 +55,24 @@ export async function POST(request: NextRequest) {
     // This enables the database trigger protection for approval fields
 
     // Create or update ISMS scope
+    const scopeInsert: InsertTables<'isms_scopes'> = {
+      organization_id: userData.organization_id,
+      scope_statement: draftScope.scopeStatement,
+      boundaries: draftScope.boundaries as unknown as Json,
+      exclusions: draftScope.exclusions.join('\n'),
+      interested_parties: draftScope.interestedParties as unknown as Json,
+      regulatory_requirements: draftScope.regulatoryRequirements as unknown as Json,
+      approved_by: userData.id,
+      approved_at: new Date().toISOString()
+    }
+
     const { data: scopeData, error: scopeError } = await supabase
       .from('isms_scopes')
-      .upsert({
-        organization_id: userData.organization_id,
-        scope_statement: draftScope.scopeStatement,
-        boundaries: draftScope.boundaries,
-        exclusions: draftScope.exclusions.join('\n'),
-        interested_parties: draftScope.interestedParties,
-        regulatory_requirements: draftScope.regulatoryRequirements,
-        approved_by: userData.id,
-        approved_at: new Date().toISOString()
-      }, {
+      .upsert(scopeInsert as never, {
         onConflict: 'organization_id'
       })
       .select()
-      .single()
+      .single<Tables<'isms_scopes'>>()
 
     if (scopeError) {
       console.error('Error saving scope:', scopeError)
@@ -78,22 +83,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Create approval log entry
+    const logInsert: InsertTables<'approval_logs'> = {
+      organization_id: userData.organization_id,
+      object_type: 'scope',
+      object_id: scopeData.id,
+      action: 'approved',
+      approved_by: userData.id,
+      comment: comment || 'ISMS scope approved via intake questionnaire',
+      metadata: {
+        source: 'intake_agent',
+        annexAAssumptions: draftScope.annexAAssumptions,
+        riskAreas: draftScope.riskAreas,
+        recommendations: draftScope.recommendations
+      } as unknown as Json
+    }
+
     const { error: logError } = await supabase
       .from('approval_logs')
-      .insert({
-        organization_id: userData.organization_id,
-        object_type: 'scope',
-        object_id: scopeData.id,
-        action: 'approved',
-        approved_by: userData.id,
-        comment: comment || 'ISMS scope approved via intake questionnaire',
-        metadata: {
-          source: 'intake_agent',
-          annexAAssumptions: draftScope.annexAAssumptions,
-          riskAreas: draftScope.riskAreas,
-          recommendations: draftScope.recommendations
-        }
-      })
+      .insert(logInsert as never)
 
     if (logError) {
       console.error('Error creating approval log:', logError)

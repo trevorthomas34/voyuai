@@ -239,3 +239,155 @@ export const statusConfig: Record<StatusType, { label: string; color: string }> 
   draft: { label: 'Draft', color: 'bg-gray-100 text-gray-800' },
   approved: { label: 'Approved', color: 'bg-green-100 text-green-800' }
 }
+
+// Evidence types
+export type EvidenceType = 'policy' | 'procedure' | 'screenshot' | 'log' | 'report' | 'configuration' | 'certificate' | 'other'
+
+export interface MockEvidence {
+  id: string
+  control_id: string
+  control_name: string
+  name: string
+  description: string | null
+  evidence_type: EvidenceType
+  file_url: string | null
+  stage_acceptable: 'stage_1' | 'stage_2' | 'both'
+  uploaded_by: string
+  uploaded_at: string
+  verified: boolean
+}
+
+export const evidenceTypeLabels: Record<EvidenceType, string> = {
+  policy: 'Policy Document',
+  procedure: 'Procedure',
+  screenshot: 'Screenshot',
+  log: 'System Log',
+  report: 'Report',
+  configuration: 'Configuration',
+  certificate: 'Certificate',
+  other: 'Other'
+}
+
+export const evidenceTypeConfig: Record<EvidenceType, { label: string; color: string }> = {
+  policy: { label: 'Policy', color: 'bg-blue-100 text-blue-800' },
+  procedure: { label: 'Procedure', color: 'bg-purple-100 text-purple-800' },
+  screenshot: { label: 'Screenshot', color: 'bg-cyan-100 text-cyan-800' },
+  log: { label: 'Log', color: 'bg-gray-100 text-gray-800' },
+  report: { label: 'Report', color: 'bg-green-100 text-green-800' },
+  configuration: { label: 'Config', color: 'bg-orange-100 text-orange-800' },
+  certificate: { label: 'Certificate', color: 'bg-yellow-100 text-yellow-800' },
+  other: { label: 'Other', color: 'bg-gray-100 text-gray-800' }
+}
+
+export const stageConfig: Record<string, { label: string; color: string }> = {
+  stage_1: { label: 'Stage 1', color: 'bg-blue-100 text-blue-800' },
+  stage_2: { label: 'Stage 2', color: 'bg-purple-100 text-purple-800' },
+  both: { label: 'Both Stages', color: 'bg-green-100 text-green-800' }
+}
+
+export const mockEvidence: MockEvidence[] = [
+  {
+    id: '1',
+    control_id: 'A.5.1',
+    control_name: 'Policies for information security',
+    name: 'Information Security Policy v2.1',
+    description: 'Master information security policy approved by management',
+    evidence_type: 'policy',
+    file_url: '/docs/information-security-policy.pdf',
+    stage_acceptable: 'both',
+    uploaded_by: 'John Smith',
+    uploaded_at: '2024-01-10T09:00:00Z',
+    verified: true
+  },
+  {
+    id: '2',
+    control_id: 'A.5.2',
+    control_name: 'Information security roles and responsibilities',
+    name: 'RACI Matrix - Security Roles',
+    description: 'Responsibility assignment matrix for security functions',
+    evidence_type: 'procedure',
+    file_url: '/docs/security-raci.xlsx',
+    stage_acceptable: 'stage_1',
+    uploaded_by: 'Jane Doe',
+    uploaded_at: '2024-01-12T14:30:00Z',
+    verified: true
+  },
+  {
+    id: '3',
+    control_id: 'A.5.15',
+    control_name: 'Access control',
+    name: 'Access Control Policy',
+    description: 'Policy governing access to information systems',
+    evidence_type: 'policy',
+    file_url: '/docs/access-control-policy.pdf',
+    stage_acceptable: 'both',
+    uploaded_by: 'John Smith',
+    uploaded_at: '2024-01-15T10:00:00Z',
+    verified: true
+  },
+  {
+    id: '4',
+    control_id: 'A.5.15',
+    control_name: 'Access control',
+    name: 'Google Workspace Admin Console - Access Settings',
+    description: 'Screenshot showing MFA and access controls enabled',
+    evidence_type: 'screenshot',
+    file_url: '/evidence/gws-admin-settings.png',
+    stage_acceptable: 'stage_2',
+    uploaded_by: 'Jane Doe',
+    uploaded_at: '2024-01-18T11:00:00Z',
+    verified: false
+  },
+  {
+    id: '5',
+    control_id: 'A.6.1',
+    control_name: 'Screening',
+    name: 'Background Check Procedure',
+    description: 'HR procedure for employee screening',
+    evidence_type: 'procedure',
+    file_url: '/docs/background-check-procedure.pdf',
+    stage_acceptable: 'stage_1',
+    uploaded_by: 'HR Team',
+    uploaded_at: '2024-01-08T16:00:00Z',
+    verified: true
+  },
+  {
+    id: '6',
+    control_id: 'A.8.5',
+    control_name: 'Secure authentication',
+    name: 'MFA Enforcement Report',
+    description: 'Report showing 100% MFA enrollment',
+    evidence_type: 'report',
+    file_url: '/evidence/mfa-report.pdf',
+    stage_acceptable: 'stage_2',
+    uploaded_by: 'IT Team',
+    uploaded_at: '2024-01-20T09:30:00Z',
+    verified: true
+  },
+  {
+    id: '7',
+    control_id: 'A.8.13',
+    control_name: 'Information backup',
+    name: 'Backup Configuration - Production DB',
+    description: 'AWS RDS automated backup configuration',
+    evidence_type: 'configuration',
+    file_url: '/evidence/rds-backup-config.json',
+    stage_acceptable: 'stage_2',
+    uploaded_by: 'DevOps',
+    uploaded_at: '2024-01-22T08:00:00Z',
+    verified: true
+  },
+  {
+    id: '8',
+    control_id: 'A.8.24',
+    control_name: 'Use of cryptography',
+    name: 'SSL Certificate - Production',
+    description: 'TLS 1.3 certificate for production domain',
+    evidence_type: 'certificate',
+    file_url: '/evidence/ssl-cert.pem',
+    stage_acceptable: 'stage_2',
+    uploaded_by: 'DevOps',
+    uploaded_at: '2024-01-25T10:00:00Z',
+    verified: true
+  }
+]

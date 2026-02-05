@@ -1,13 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import type { Database } from '@/types/supabase'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SupabaseClient = any
-
-export async function createClient(): Promise<SupabaseClient> {
+export async function createClient() {
   const cookieStore = await cookies()
 
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -29,8 +27,3 @@ export async function createClient(): Promise<SupabaseClient> {
     }
   )
 }
-
-// Note: After setting up Supabase, run `npx supabase gen types typescript`
-// to generate proper types and update this file to use Database type:
-// import type { Database } from '@/types/database'
-// return createServerClient<Database>(...)
