@@ -3,20 +3,15 @@
 // Inputs: Industry, headcount, geography, data types, cloud stack, customer types
 // Outputs: Draft ISMS scope, interested parties, regulatory exposure, initial Annex A assumptions
 
-import OpenAI from 'openai'
-
 // Lazy-load OpenAI client to avoid build-time initialization errors
-let openaiClient: OpenAI | null = null
-
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is not set')
-    }
-    openaiClient = new OpenAI({ apiKey })
+// Using dynamic import to prevent module from loading during Next.js build
+async function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY environment variable is not set')
   }
-  return openaiClient
+  const { default: OpenAI } = await import('openai')
+  return new OpenAI({ apiKey })
 }
 
 export interface IntakeResponses {
@@ -147,7 +142,7 @@ export async function generateDraftScope(responses: IntakeResponses): Promise<Dr
   const prompt = SCOPE_GENERATION_PROMPT.replace('{responses}', formattedResponses)
 
   try {
-    const openai = getOpenAIClient()
+    const openai = await getOpenAIClient()
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
