@@ -1,68 +1,131 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
-import { mockAssets, mockRisks, mockEvidence } from '@/lib/mock-data'
-import { annexAControls, getControlStats } from '@/lib/controls-data'
+import { getAssets } from '@/lib/data/assets'
+import { getRisks } from '@/lib/data/risks'
+import { getEvidence, getControlsWithEvidence } from '@/lib/data/evidence'
+import { getControlStats, type ControlStats } from '@/lib/data/controls'
+
+interface DashboardStats {
+  assets: { total: number; inScope: number; critical: number }
+  risks: { total: number; high: number; approved: number; pending: number }
+  controls: ControlStats
+  evidence: { total: number; verified: number; controlsCovered: number }
+}
 
 export default function DashboardPage() {
-  // Calculate real stats from mock data
-  const controlStats = getControlStats(annexAControls)
-  const assetStats = {
-    total: mockAssets.length,
-    inScope: mockAssets.filter(a => a.in_scope).length,
-    critical: mockAssets.filter(a => a.criticality === 'critical').length
-  }
-  const riskStats = {
-    total: mockRisks.length,
-    high: mockRisks.filter(r => r.risk_level === 'high').length,
-    approved: mockRisks.filter(r => r.status === 'approved').length,
-    pending: mockRisks.filter(r => r.status === 'draft').length
-  }
-  const evidenceStats = {
-    total: mockEvidence.length,
-    verified: mockEvidence.filter(e => e.verified).length,
-    controlsCovered: new Set(mockEvidence.map(e => e.control_id)).size
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch all stats on mount
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const [assets, risks, evidence, controlStats, controlsWithEvidence] = await Promise.all([
+          getAssets(),
+          getRisks(),
+          getEvidence(),
+          getControlStats(),
+          getControlsWithEvidence()
+        ])
+
+        setStats({
+          assets: {
+            total: assets.length,
+            inScope: assets.filter(a => a.in_scope).length,
+            critical: assets.filter(a => a.criticality === 'critical').length
+          },
+          risks: {
+            total: risks.length,
+            high: risks.filter(r => r.risk_level === 'high').length,
+            approved: risks.filter(r => r.status === 'approved').length,
+            pending: risks.filter(r => r.status === 'draft').length
+          },
+          controls: controlStats,
+          evidence: {
+            total: evidence.length,
+            verified: evidence.filter(e => e.verified).length,
+            controlsCovered: controlsWithEvidence.length
+          }
+        })
+      } catch (error) {
+        console.error('Failed to fetch dashboard stats:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStats()
+  }, [])
+
+  if (loading || !stats) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">Voyu</h1>
+              <p className="text-sm text-muted-foreground">ISMS Dashboard</p>
+            </div>
+            <nav className="flex items-center space-x-4">
+              <Link href="/dashboard" className="text-sm font-medium">Dashboard</Link>
+              <Link href="/assets" className="text-sm hover:underline">Assets</Link>
+              <Link href="/risks" className="text-sm hover:underline">Risks</Link>
+              <Link href="/controls" className="text-sm hover:underline">Controls</Link>
+              <Link href="/evidence" className="text-sm hover:underline">Evidence</Link>
+              <Link href="/soa" className="text-sm hover:underline">SoA</Link>
+            </nav>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   // Calculate phase progress
   const phases = {
     intake: { status: 'complete' as const, progress: 100 },
     assets: {
-      status: assetStats.total > 0 ? 'complete' as const : 'pending' as const,
-      progress: assetStats.total > 0 ? 100 : 0
+      status: stats.assets.total > 0 ? 'complete' as const : 'pending' as const,
+      progress: stats.assets.total > 0 ? 100 : 0
     },
     risks: {
-      status: riskStats.total > 0
-        ? (riskStats.approved === riskStats.total ? 'complete' as const : 'in_progress' as const)
+      status: stats.risks.total > 0
+        ? (stats.risks.approved === stats.risks.total ? 'complete' as const : 'in_progress' as const)
         : 'pending' as const,
-      progress: riskStats.total > 0
-        ? Math.round((riskStats.approved / riskStats.total) * 100)
+      progress: stats.risks.total > 0
+        ? Math.round((stats.risks.approved / stats.risks.total) * 100)
         : 0
     },
     controls: {
-      status: controlStats.implemented > 0
-        ? (controlStats.gap === 0 ? 'complete' as const : 'in_progress' as const)
+      status: stats.controls.implemented > 0
+        ? (stats.controls.gap === 0 ? 'complete' as const : 'in_progress' as const)
         : 'pending' as const,
-      progress: controlStats.applicable > 0
-        ? Math.round((controlStats.implemented / controlStats.applicable) * 100)
+      progress: stats.controls.applicable > 0
+        ? Math.round((stats.controls.implemented / stats.controls.applicable) * 100)
         : 0
     },
     evidence: {
-      status: evidenceStats.total > 0
-        ? (evidenceStats.controlsCovered >= controlStats.applicable ? 'complete' as const : 'in_progress' as const)
+      status: stats.evidence.total > 0
+        ? (stats.evidence.controlsCovered >= stats.controls.applicable ? 'complete' as const : 'in_progress' as const)
         : 'pending' as const,
-      progress: controlStats.applicable > 0
-        ? Math.round((evidenceStats.controlsCovered / controlStats.applicable) * 100)
+      progress: stats.controls.applicable > 0
+        ? Math.round((stats.evidence.controlsCovered / stats.controls.applicable) * 100)
         : 0
     },
     soa: {
-      status: controlStats.gap === 0 ? 'complete' as const : 'in_progress' as const,
-      progress: controlStats.applicable > 0
-        ? Math.round(((controlStats.implemented + controlStats.partial) / controlStats.applicable) * 100)
+      status: stats.controls.gap === 0 ? 'complete' as const : 'in_progress' as const,
+      progress: stats.controls.applicable > 0
+        ? Math.round(((stats.controls.implemented + stats.controls.partial) / stats.controls.applicable) * 100)
         : 0
     }
   }
@@ -114,44 +177,44 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Assets in Scope</CardDescription>
-              <CardTitle className="text-3xl">{assetStats.inScope}</CardTitle>
+              <CardTitle className="text-3xl">{stats.assets.inScope}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">
-                {assetStats.critical} critical
+                {stats.assets.critical} critical
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Risks Identified</CardDescription>
-              <CardTitle className="text-3xl">{riskStats.total}</CardTitle>
+              <CardTitle className="text-3xl">{stats.risks.total}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">
-                <span className="text-red-600">{riskStats.high} high</span> · {riskStats.pending} pending approval
+                <span className="text-red-600">{stats.risks.high} high</span> · {stats.risks.pending} pending approval
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Controls Implemented</CardDescription>
-              <CardTitle className="text-3xl">{controlStats.implemented}/{controlStats.applicable}</CardTitle>
+              <CardTitle className="text-3xl">{stats.controls.implemented}/{stats.controls.applicable}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">
-                {controlStats.partial} partial · <span className="text-red-600">{controlStats.gap} gaps</span>
+                {stats.controls.partial} partial · <span className="text-red-600">{stats.controls.gap} gaps</span>
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Evidence Collected</CardDescription>
-              <CardTitle className="text-3xl">{evidenceStats.total}</CardTitle>
+              <CardTitle className="text-3xl">{stats.evidence.total}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">
-                {evidenceStats.verified} verified · {evidenceStats.controlsCovered} controls covered
+                {stats.evidence.verified} verified · {stats.evidence.controlsCovered} controls covered
               </p>
             </CardContent>
           </Card>
@@ -174,7 +237,7 @@ export default function DashboardPage() {
             status={phases.assets.status}
             progress={phases.assets.progress}
             href="/assets"
-            actionLabel={assetStats.total > 0 ? "Manage Assets" : "Add Assets"}
+            actionLabel={stats.assets.total > 0 ? "Manage Assets" : "Add Assets"}
           />
           <WorkflowCard
             title="Risk Assessment"
@@ -182,7 +245,7 @@ export default function DashboardPage() {
             status={phases.risks.status}
             progress={phases.risks.progress}
             href="/risks"
-            actionLabel={riskStats.pending > 0 ? "Review Risks" : "Manage Risks"}
+            actionLabel={stats.risks.pending > 0 ? "Review Risks" : "Manage Risks"}
           />
           <WorkflowCard
             title="Controls"
@@ -190,7 +253,7 @@ export default function DashboardPage() {
             status={phases.controls.status}
             progress={phases.controls.progress}
             href="/controls"
-            actionLabel={controlStats.gap > 0 ? "Address Gaps" : "View Controls"}
+            actionLabel={stats.controls.gap > 0 ? "Address Gaps" : "View Controls"}
           />
           <WorkflowCard
             title="Evidence"
@@ -218,34 +281,43 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {riskStats.pending > 0 && (
+              {stats.assets.total === 0 && (
                 <ActionItem
                   priority="high"
-                  title={`${riskStats.pending} risks awaiting approval`}
+                  title="Add your first asset"
+                  description="Start by documenting your information assets"
+                  href="/assets"
+                  action="Add Asset"
+                />
+              )}
+              {stats.risks.pending > 0 && (
+                <ActionItem
+                  priority="high"
+                  title={`${stats.risks.pending} risks awaiting approval`}
                   description="Review and approve draft risks to complete risk assessment"
                   href="/risks"
                   action="Review Risks"
                 />
               )}
-              {controlStats.gap > 0 && (
+              {stats.controls.gap > 0 && (
                 <ActionItem
                   priority="high"
-                  title={`${controlStats.gap} control gaps identified`}
+                  title={`${stats.controls.gap} control gaps identified`}
                   description="Address implementation gaps for applicable controls"
                   href="/controls"
                   action="View Gaps"
                 />
               )}
-              {evidenceStats.controlsCovered < controlStats.implemented && (
+              {stats.evidence.controlsCovered < stats.controls.implemented && (
                 <ActionItem
                   priority="medium"
                   title="Evidence needed for implemented controls"
-                  description={`${controlStats.implemented - evidenceStats.controlsCovered} implemented controls lack evidence`}
+                  description={`${stats.controls.implemented - stats.evidence.controlsCovered} implemented controls lack evidence`}
                   href="/evidence"
                   action="Upload Evidence"
                 />
               )}
-              {riskStats.pending === 0 && controlStats.gap === 0 && (
+              {stats.assets.total > 0 && stats.risks.pending === 0 && stats.controls.gap === 0 && (
                 <div className="text-center py-4 text-muted-foreground">
                   Great progress! Continue collecting evidence and preparing for audit.
                 </div>

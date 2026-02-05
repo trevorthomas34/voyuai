@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,10 +36,11 @@ import {
   annexAControls,
   implementationStatusConfig,
   controlThemeLabels,
-  getControlStats,
   type ControlData
 } from '@/lib/controls-data'
-import { mockRisks } from '@/lib/mock-data'
+import { getRisks, type RiskWithAsset } from '@/lib/data/risks'
+import { getOrganizationControls, type ControlWithStatus } from '@/lib/data/controls'
+import { getSoARecords, lockSoAForAudit, type SoARecordWithControl } from '@/lib/data/soa'
 import type { ControlTheme } from '@/types/database'
 
 interface SoARecord extends ControlData {
@@ -48,25 +49,66 @@ interface SoARecord extends ControlData {
   lockedForAudit: boolean
 }
 
-// Convert controls to SoA records with mock linked data
-const initialSoARecords: SoARecord[] = annexAControls.map(control => ({
-  ...control,
-  linkedRisks: control.applicable && control.implementation_status !== 'gap'
-    ? mockRisks.slice(0, Math.floor(Math.random() * 2) + 1).map(r => r.id)
-    : [],
-  linkedEvidence: control.applicable && control.implementation_status === 'implemented'
-    ? ['evidence-1', 'evidence-2'].slice(0, Math.floor(Math.random() * 2) + 1)
-    : [],
-  lockedForAudit: false
-}))
-
 export default function SoAPage() {
-  const [records, setRecords] = useState<SoARecord[]>(initialSoARecords)
+  const [records, setRecords] = useState<SoARecord[]>([])
+  const [risks, setRisks] = useState<RiskWithAsset[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [themeFilter, setThemeFilter] = useState<ControlTheme | 'all'>('all')
   const [applicableFilter, setApplicableFilter] = useState<'all' | 'applicable' | 'not_applicable'>('all')
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [selectedRecord, setSelectedRecord] = useState<SoARecord | null>(null)
+
+  // Fetch data on mount
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [controlsData, risksData, soaRecordsData] = await Promise.all([
+          getOrganizationControls(),
+          getRisks(),
+          getSoARecords().catch(() => [] as SoARecordWithControl[]) // Handle case where no SoA records exist yet
+        ])
+
+        // Create a map of SoA records by control ID
+        const soaMap = new Map(soaRecordsData.map(r => [r.control_id, r]))
+
+        // Create a map of organization controls by ID for status lookup
+        const controlStatusMap = new Map(controlsData.map(c => [c.id, c]))
+
+        // Merge Annex A controls with organization-specific data and SoA records
+        const mergedRecords: SoARecord[] = annexAControls.map(control => {
+          const orgControl = controlStatusMap.get(control.id)
+          const soaRecord = soaMap.get(control.id)
+
+          return {
+            ...control,
+            applicable: orgControl?.applicable ?? control.applicable,
+            justification: orgControl?.justification ?? control.justification,
+            implementation_status: orgControl?.implementation_status ?? control.implementation_status,
+            linkedRisks: soaRecord?.linked_risks ?? [],
+            linkedEvidence: soaRecord?.linked_evidence ?? [],
+            lockedForAudit: soaRecord?.locked_for_audit ?? false
+          }
+        })
+
+        setRecords(mergedRecords)
+        setRisks(risksData)
+      } catch (error) {
+        console.error('Failed to fetch SoA data:', error)
+        // Fall back to mock data from annexAControls
+        setRecords(annexAControls.map(control => ({
+          ...control,
+          linkedRisks: [],
+          linkedEvidence: [],
+          lockedForAudit: false
+        })))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   // Filter records
   const filteredRecords = records.filter(record => {
@@ -81,7 +123,17 @@ export default function SoAPage() {
     return matchesSearch && matchesTheme && matchesApplicable
   })
 
-  const stats = getControlStats(records)
+  // Calculate stats
+  const applicable = records.filter(c => c.applicable)
+  const stats = {
+    total: records.length,
+    applicable: applicable.length,
+    notApplicable: records.length - applicable.length,
+    implemented: applicable.filter(c => c.implementation_status === 'implemented').length,
+    partial: applicable.filter(c => c.implementation_status === 'partial').length,
+    gap: applicable.filter(c => c.implementation_status === 'gap').length
+  }
+
   const completeness = stats.applicable > 0
     ? Math.round(((stats.implemented + stats.partial) / stats.applicable) * 100)
     : 0
@@ -89,15 +141,50 @@ export default function SoAPage() {
   const lockedCount = records.filter(r => r.lockedForAudit).length
   const isFullyLocked = lockedCount === records.length
 
-  const handleLockForAudit = () => {
-    setRecords(prev => prev.map(r => ({ ...r, lockedForAudit: true })))
-    setLockDialogOpen(false)
+  const handleLockForAudit = async () => {
+    try {
+      await lockSoAForAudit()
+      setRecords(prev => prev.map(r => ({ ...r, lockedForAudit: true })))
+      setLockDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to lock SoA:', error)
+      // Fall back to local state update
+      setRecords(prev => prev.map(r => ({ ...r, lockedForAudit: true })))
+      setLockDialogOpen(false)
+    }
   }
 
   const handleUnlock = (recordId: string) => {
     setRecords(prev => prev.map(r =>
       r.id === recordId ? { ...r, lockedForAudit: false } : r
     ))
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">Voyu</h1>
+              <p className="text-sm text-muted-foreground">Statement of Applicability</p>
+            </div>
+            <nav className="flex items-center space-x-4">
+              <Link href="/dashboard" className="text-sm hover:underline">Dashboard</Link>
+              <Link href="/assets" className="text-sm hover:underline">Assets</Link>
+              <Link href="/risks" className="text-sm hover:underline">Risks</Link>
+              <Link href="/controls" className="text-sm hover:underline">Controls</Link>
+              <Link href="/soa" className="text-sm font-medium">SoA</Link>
+            </nav>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading SoA...</p>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -381,7 +468,7 @@ export default function SoAPage() {
                   {selectedRecord.linkedRisks.length > 0 ? (
                     <div className="flex flex-wrap gap-2 mt-1">
                       {selectedRecord.linkedRisks.map(riskId => {
-                        const risk = mockRisks.find(r => r.id === riskId)
+                        const risk = risks.find(r => r.id === riskId)
                         return (
                           <Badge key={riskId} variant="outline">
                             {risk?.threat.substring(0, 30)}...

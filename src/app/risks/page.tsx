@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,24 +16,34 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { RiskTable } from '@/components/risks/risk-table'
 import { RiskForm } from '@/components/risks/risk-form'
 import { ApprovalDialog } from '@/components/risks/approval-dialog'
-import {
-  mockRisks,
-  mockAssets,
-  type MockRisk,
-  riskLevelConfig
-} from '@/lib/mock-data'
+import { riskLevelConfig } from '@/lib/mock-data'
+import { getRisks, createRisk, updateRisk, deleteRisk as deleteRiskApi, approveRisk, type RiskWithAsset } from '@/lib/data/risks'
+import { getAssets, type Asset } from '@/lib/data/assets'
 import type { RiskLevel, StatusType } from '@/types/database'
 
 export default function RisksPage() {
-  const [risks, setRisks] = useState<MockRisk[]>(mockRisks)
+  const [risks, setRisks] = useState<RiskWithAsset[]>([])
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [levelFilter, setLevelFilter] = useState<RiskLevel | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<StatusType | 'all'>('all')
 
   const [formOpen, setFormOpen] = useState(false)
-  const [editingRisk, setEditingRisk] = useState<MockRisk | null>(null)
-  const [deleteRisk, setDeleteRisk] = useState<MockRisk | null>(null)
-  const [approvingRisk, setApprovingRisk] = useState<MockRisk | null>(null)
+  const [editingRisk, setEditingRisk] = useState<RiskWithAsset | null>(null)
+  const [deletingRisk, setDeletingRisk] = useState<RiskWithAsset | null>(null)
+  const [approvingRisk, setApprovingRisk] = useState<RiskWithAsset | null>(null)
+
+  // Fetch data on mount
+  useEffect(() => {
+    Promise.all([getRisks(), getAssets()])
+      .then(([risksData, assetsData]) => {
+        setRisks(risksData)
+        setAssets(assetsData)
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
   // Filter risks
   const filteredRisks = risks.filter(risk => {
@@ -51,71 +61,80 @@ export default function RisksPage() {
     setFormOpen(true)
   }
 
-  const handleEditRisk = (risk: MockRisk) => {
+  const handleEditRisk = (risk: RiskWithAsset) => {
     setEditingRisk(risk)
     setFormOpen(true)
   }
 
-  const handleSaveRisk = (riskData: Partial<MockRisk>) => {
-    if (riskData.id) {
-      // Update existing
-      setRisks(prev => prev.map(r =>
-        r.id === riskData.id
-          ? { ...r, ...riskData, status: 'draft', approved_by: null, approved_at: null, updated_at: new Date().toISOString() }
-          : r
-      ))
-    } else {
-      // Add new
-      const newRisk: MockRisk = {
-        id: String(Date.now()),
-        asset_id: riskData.asset_id || null,
-        asset_name: riskData.asset_name,
-        threat: riskData.threat || '',
-        vulnerability: riskData.vulnerability || null,
-        impact: riskData.impact || 'medium',
-        likelihood: riskData.likelihood || 'medium',
-        risk_level: riskData.risk_level || 'medium',
-        treatment: riskData.treatment || 'mitigate',
-        treatment_plan: riskData.treatment_plan || null,
-        status: 'draft',
-        owner_id: null,
-        approved_by: null,
-        approved_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+  const handleSaveRisk = async (riskData: Partial<RiskWithAsset>) => {
+    try {
+      if (riskData.id) {
+        // Update existing - revert to draft status
+        const updated = await updateRisk(riskData.id, {
+          ...riskData,
+          status: 'draft',
+          approved_by: null,
+          approved_at: null
+        })
+        // Get asset name for display
+        const asset = assets.find(a => a.id === updated.asset_id)
+        setRisks(prev => prev.map(r =>
+          r.id === updated.id ? { ...updated, asset_name: asset?.name } : r
+        ))
+      } else {
+        // Add new
+        const created = await createRisk({
+          asset_id: riskData.asset_id || null,
+          threat: riskData.threat || '',
+          vulnerability: riskData.vulnerability || null,
+          impact: riskData.impact || 'medium',
+          likelihood: riskData.likelihood || 'medium',
+          risk_level: riskData.risk_level || 'medium',
+          treatment: riskData.treatment || 'mitigate',
+          treatment_plan: riskData.treatment_plan || null
+        })
+        // Get asset name for display
+        const asset = assets.find(a => a.id === created.asset_id)
+        setRisks(prev => [{ ...created, asset_name: asset?.name }, ...prev])
       }
-      setRisks(prev => [...prev, newRisk])
+      setFormOpen(false)
+    } catch (error) {
+      console.error('Failed to save risk:', error)
     }
   }
 
-  const handleDeleteRisk = (risk: MockRisk) => {
-    setDeleteRisk(risk)
+  const handleDeleteRisk = (risk: RiskWithAsset) => {
+    setDeletingRisk(risk)
   }
 
-  const confirmDelete = () => {
-    if (deleteRisk) {
-      setRisks(prev => prev.filter(r => r.id !== deleteRisk.id))
-      setDeleteRisk(null)
+  const confirmDelete = async () => {
+    if (deletingRisk) {
+      try {
+        await deleteRiskApi(deletingRisk.id)
+        setRisks(prev => prev.filter(r => r.id !== deletingRisk.id))
+        setDeletingRisk(null)
+      } catch (error) {
+        console.error('Failed to delete risk:', error)
+      }
     }
   }
 
-  const handleApproveRisk = (risk: MockRisk) => {
+  const handleApproveRisk = (risk: RiskWithAsset) => {
     setApprovingRisk(risk)
   }
 
-  const confirmApproval = (riskId: string, comment: string) => {
-    setRisks(prev => prev.map(r =>
-      r.id === riskId
-        ? {
-            ...r,
-            status: 'approved' as const,
-            approved_by: '1', // Would be current user
-            approved_at: new Date().toISOString()
-          }
-        : r
-    ))
-    // In real app, this would also create an approval_log entry
-    console.log('Approval logged:', { riskId, comment })
+  const confirmApproval = async (riskId: string, comment: string) => {
+    try {
+      const approved = await approveRisk(riskId, comment)
+      // Preserve asset_name
+      const existingRisk = risks.find(r => r.id === riskId)
+      setRisks(prev => prev.map(r =>
+        r.id === riskId ? { ...approved, asset_name: existingRisk?.asset_name } : r
+      ))
+      setApprovingRisk(null)
+    } catch (error) {
+      console.error('Failed to approve risk:', error)
+    }
   }
 
   // Stats
@@ -123,6 +142,33 @@ export default function RisksPage() {
   const highRisks = risks.filter(r => r.risk_level === 'high').length
   const draftRisks = risks.filter(r => r.status === 'draft').length
   const approvedRisks = risks.filter(r => r.status === 'approved').length
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">Voyu</h1>
+              <p className="text-sm text-muted-foreground">Risk Register</p>
+            </div>
+            <nav className="flex items-center space-x-4">
+              <Link href="/dashboard" className="text-sm hover:underline">Dashboard</Link>
+              <Link href="/assets" className="text-sm hover:underline">Assets</Link>
+              <Link href="/risks" className="text-sm font-medium">Risks</Link>
+              <Link href="/controls" className="text-sm hover:underline">Controls</Link>
+              <Link href="/soa" className="text-sm hover:underline">SoA</Link>
+            </nav>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading risks...</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -219,12 +265,19 @@ export default function RisksPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RiskTable
-              risks={filteredRisks}
-              onEdit={handleEditRisk}
-              onDelete={handleDeleteRisk}
-              onApprove={handleApproveRisk}
-            />
+            {risks.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground mb-4">No risks yet. Add your first risk assessment to get started.</p>
+                <Button onClick={handleAddRisk}>+ Add Risk</Button>
+              </div>
+            ) : (
+              <RiskTable
+                risks={filteredRisks}
+                onEdit={handleEditRisk}
+                onDelete={handleDeleteRisk}
+                onApprove={handleApproveRisk}
+              />
+            )}
           </CardContent>
         </Card>
       </main>
@@ -234,7 +287,7 @@ export default function RisksPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         risk={editingRisk}
-        assets={mockAssets}
+        assets={assets}
         onSave={handleSaveRisk}
       />
 
@@ -247,17 +300,17 @@ export default function RisksPage() {
       />
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteRisk} onOpenChange={() => setDeleteRisk(null)}>
+      <Dialog open={!!deletingRisk} onOpenChange={() => setDeletingRisk(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Risk</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the risk &quot;{deleteRisk?.threat}&quot;?
+              Are you sure you want to delete the risk &quot;{deletingRisk?.threat}&quot;?
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteRisk(null)}>
+            <Button variant="outline" onClick={() => setDeletingRisk(null)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDelete}>

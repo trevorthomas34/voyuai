@@ -14,12 +14,15 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { RiskMatrix } from './risk-matrix'
-import { type MockRisk, riskLevelConfig, treatmentLabels } from '@/lib/mock-data'
+import { riskLevelConfig, treatmentLabels } from '@/lib/mock-data'
+import type { Tables } from '@/types/supabase'
+
+type Risk = Tables<'risks'> & { asset_name?: string }
 
 interface ApprovalDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  risk: MockRisk | null
+  risk: Risk | null
   onApprove: (riskId: string, comment: string) => void
 }
 

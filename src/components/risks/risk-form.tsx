@@ -21,15 +21,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { RiskMatrix } from './risk-matrix'
-import { calculateRiskLevel, type MockRisk, type MockAsset, treatmentLabels } from '@/lib/mock-data'
+import { calculateRiskLevel, treatmentLabels } from '@/lib/mock-data'
 import type { RiskLevel, TreatmentType } from '@/types/database'
+import type { Tables } from '@/types/supabase'
+
+type Risk = Tables<'risks'> & { asset_name?: string }
+type Asset = Tables<'assets'>
 
 interface RiskFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  risk?: MockRisk | null
-  assets: MockAsset[]
-  onSave: (risk: Partial<MockRisk>) => void
+  risk?: Risk | null
+  assets: Asset[]
+  onSave: (risk: Partial<Risk>) => void
 }
 
 export function RiskForm({ open, onOpenChange, risk, assets, onSave }: RiskFormProps) {

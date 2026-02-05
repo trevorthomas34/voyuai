@@ -16,12 +16,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { type MockAsset, assetTypeLabels, criticalityConfig } from '@/lib/mock-data'
+import { assetTypeLabels, criticalityConfig } from '@/lib/mock-data'
+import type { Tables } from '@/types/supabase'
+
+type Asset = Tables<'assets'>
 
 interface AssetTableProps {
-  assets: MockAsset[]
-  onEdit: (asset: MockAsset) => void
-  onDelete: (asset: MockAsset) => void
+  assets: Asset[]
+  onEdit: (asset: Asset) => void
+  onDelete: (asset: Asset) => void
 }
 
 export function AssetTable({ assets, onEdit, onDelete }: AssetTableProps) {
@@ -67,7 +70,7 @@ export function AssetTable({ assets, onEdit, onDelete }: AssetTableProps) {
                   {criticalityConfig[asset.criticality].label}
                 </Badge>
               </TableCell>
-              <TableCell>{asset.owner_name || '-'}</TableCell>
+              <TableCell>{asset.owner_id || '-'}</TableCell>
               <TableCell>
                 {asset.in_scope ? (
                   <Badge variant="default">Yes</Badge>

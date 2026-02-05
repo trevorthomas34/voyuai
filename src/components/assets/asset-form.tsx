@@ -21,14 +21,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import type { MockAsset } from '@/lib/mock-data'
 import type { AssetType, Criticality } from '@/types/database'
+import type { Tables } from '@/types/supabase'
+
+type Asset = Tables<'assets'>
 
 interface AssetFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  asset?: MockAsset | null
-  onSave: (asset: Partial<MockAsset>) => void
+  asset?: Asset | null
+  onSave: (asset: Partial<Asset>) => void
 }
 
 const assetTypes: { value: AssetType; label: string }[] = [

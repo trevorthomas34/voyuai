@@ -18,17 +18,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  type MockRisk,
   riskLevelConfig,
   treatmentLabels,
   statusConfig
 } from '@/lib/mock-data'
+import type { Tables } from '@/types/supabase'
+
+type Risk = Tables<'risks'> & { asset_name?: string }
 
 interface RiskTableProps {
-  risks: MockRisk[]
-  onEdit: (risk: MockRisk) => void
-  onDelete: (risk: MockRisk) => void
-  onApprove: (risk: MockRisk) => void
+  risks: Risk[]
+  onEdit: (risk: Risk) => void
+  onDelete: (risk: Risk) => void
+  onApprove: (risk: Risk) => void
 }
 
 export function RiskTable({ risks, onEdit, onDelete, onApprove }: RiskTableProps) {
@@ -90,7 +92,7 @@ export function RiskTable({ risks, onEdit, onDelete, onApprove }: RiskTableProps
                   )}
                 </div>
               </TableCell>
-              <TableCell>{risk.owner_name || '-'}</TableCell>
+              <TableCell>{risk.owner_id || '-'}</TableCell>
               <TableCell>
                 <Badge className={statusConfig[risk.status].color}>
                   {statusConfig[risk.status].label}

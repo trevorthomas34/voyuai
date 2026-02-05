@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,41 +39,52 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import {
-  mockEvidence,
   evidenceTypeConfig,
   stageConfig,
-  type MockEvidence,
   type EvidenceType
 } from '@/lib/mock-data'
-import { annexAControls, getControlStats } from '@/lib/controls-data'
+import { getEvidence, createEvidence, type EvidenceWithDetails } from '@/lib/data/evidence'
+import { getOrganizationControls, type ControlWithStatus } from '@/lib/data/controls'
 
 export default function EvidencePage() {
-  const [evidence, setEvidence] = useState<MockEvidence[]>(mockEvidence)
+  const [evidence, setEvidence] = useState<EvidenceWithDetails[]>([])
+  const [controls, setControls] = useState<ControlWithStatus[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<EvidenceType | 'all'>('all')
   const [stageFilter, setStageFilter] = useState<'all' | 'stage_1' | 'stage_2' | 'both'>('all')
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
-  const [selectedEvidence, setSelectedEvidence] = useState<MockEvidence | null>(null)
+  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceWithDetails | null>(null)
+
+  // Fetch data on mount
+  useEffect(() => {
+    Promise.all([getEvidence(), getOrganizationControls()])
+      .then(([evidenceData, controlsData]) => {
+        setEvidence(evidenceData)
+        setControls(controlsData)
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
   // Filter evidence
   const filteredEvidence = evidence.filter(e => {
     const matchesSearch =
-      e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.control_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.control_name.toLowerCase().includes(searchTerm.toLowerCase())
+      e.control_name?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesType = typeFilter === 'all' || e.evidence_type === typeFilter
     const matchesStage = stageFilter === 'all' || e.stage_acceptable === stageFilter || e.stage_acceptable === 'both'
     return matchesSearch && matchesType && matchesStage
   })
 
   // Calculate stats
-  const controlStats = getControlStats(annexAControls)
   const controlsWithEvidence = new Set(evidence.map(e => e.control_id))
-  const applicableControls = annexAControls.filter(c => c.applicable)
+  const applicableControls = controls.filter(c => c.applicable)
   const implementedControls = applicableControls.filter(c => c.implementation_status === 'implemented')
 
-  const gapControls = applicableControls.filter(c =>
-    c.implementation_status === 'implemented' && !controlsWithEvidence.has(c.control_id)
+  const gapControls = implementedControls.filter(c =>
+    !controlsWithEvidence.has(c.id)
   )
 
   const stage1Evidence = evidence.filter(e => e.stage_acceptable === 'stage_1' || e.stage_acceptable === 'both')
@@ -83,29 +94,62 @@ export default function EvidencePage() {
     ? Math.round((controlsWithEvidence.size / implementedControls.length) * 100)
     : 0
 
-  const handleUpload = (data: Partial<MockEvidence>) => {
-    const newEvidence: MockEvidence = {
-      id: String(Date.now()),
-      control_id: data.control_id || '',
-      control_name: annexAControls.find(c => c.control_id === data.control_id)?.name || '',
-      name: data.name || '',
-      description: data.description || null,
-      evidence_type: data.evidence_type || 'other',
-      file_url: null, // Would be set by actual upload
-      stage_acceptable: data.stage_acceptable || 'stage_2',
-      uploaded_by: 'Current User',
-      uploaded_at: new Date().toISOString(),
-      verified: false
+  const handleUpload = async (data: { control_id: string; title: string; description?: string; evidence_type: string; stage_acceptable: 'stage_1' | 'stage_2' | 'both' }) => {
+    try {
+      const created = await createEvidence({
+        control_id: data.control_id,
+        title: data.title,
+        description: data.description || null,
+        evidence_type: data.evidence_type,
+        evidence_url: '', // Would be set by actual file upload
+        stage_acceptable: data.stage_acceptable
+      })
+      const control = controls.find(c => c.id === created.control_id)
+      setEvidence(prev => [{
+        ...created,
+        control_name: control?.name,
+        verified: false
+      }, ...prev])
+      setUploadDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to upload evidence:', error)
     }
-    setEvidence(prev => [...prev, newEvidence])
-    setUploadDialogOpen(false)
   }
 
   const handleVerify = (evidenceId: string) => {
+    // In a real app, this would update a verification status in the database
     setEvidence(prev => prev.map(e =>
       e.id === evidenceId ? { ...e, verified: true } : e
     ))
     setSelectedEvidence(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">Voyu</h1>
+              <p className="text-sm text-muted-foreground">Evidence Management</p>
+            </div>
+            <nav className="flex items-center space-x-4">
+              <Link href="/dashboard" className="text-sm hover:underline">Dashboard</Link>
+              <Link href="/assets" className="text-sm hover:underline">Assets</Link>
+              <Link href="/risks" className="text-sm hover:underline">Risks</Link>
+              <Link href="/controls" className="text-sm hover:underline">Controls</Link>
+              <Link href="/evidence" className="text-sm font-medium">Evidence</Link>
+              <Link href="/soa" className="text-sm hover:underline">SoA</Link>
+            </nav>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading evidence...</p>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -221,10 +265,21 @@ export default function EvidencePage() {
           </TabsList>
 
           <TabsContent value="all">
-            <EvidenceTable
-              evidence={filteredEvidence}
-              onSelect={setSelectedEvidence}
-            />
+            {evidence.length === 0 ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <p className="text-muted-foreground mb-4">No evidence uploaded yet. Start by uploading evidence for your implemented controls.</p>
+                    <Button onClick={() => setUploadDialogOpen(true)}>+ Upload Evidence</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <EvidenceTable
+                evidence={filteredEvidence}
+                onSelect={setSelectedEvidence}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="gaps">
@@ -261,7 +316,9 @@ export default function EvidencePage() {
                   </div>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">
-                    All implemented controls have evidence.
+                    {implementedControls.length === 0
+                      ? 'No implemented controls yet.'
+                      : 'All implemented controls have evidence.'}
                   </p>
                 )}
               </CardContent>
@@ -277,10 +334,16 @@ export default function EvidencePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <EvidenceTable
-                  evidence={stage1Evidence}
-                  onSelect={setSelectedEvidence}
-                />
+                {stage1Evidence.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No Stage 1 evidence uploaded yet.
+                  </p>
+                ) : (
+                  <EvidenceTable
+                    evidence={stage1Evidence}
+                    onSelect={setSelectedEvidence}
+                  />
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -294,10 +357,16 @@ export default function EvidencePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <EvidenceTable
-                  evidence={stage2Evidence}
-                  onSelect={setSelectedEvidence}
-                />
+                {stage2Evidence.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No Stage 2 evidence uploaded yet.
+                  </p>
+                ) : (
+                  <EvidenceTable
+                    evidence={stage2Evidence}
+                    onSelect={setSelectedEvidence}
+                  />
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -318,7 +387,7 @@ export default function EvidencePage() {
           {selectedEvidence && (
             <>
               <DialogHeader>
-                <DialogTitle>{selectedEvidence.name}</DialogTitle>
+                <DialogTitle>{selectedEvidence.title}</DialogTitle>
                 <DialogDescription>
                   Evidence for {selectedEvidence.control_id} - {selectedEvidence.control_name}
                 </DialogDescription>
@@ -327,8 +396,8 @@ export default function EvidencePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">Type</Label>
-                    <Badge className={evidenceTypeConfig[selectedEvidence.evidence_type].color}>
-                      {evidenceTypeConfig[selectedEvidence.evidence_type].label}
+                    <Badge className={evidenceTypeConfig[selectedEvidence.evidence_type as EvidenceType]?.color || 'bg-gray-100 text-gray-800'}>
+                      {evidenceTypeConfig[selectedEvidence.evidence_type as EvidenceType]?.label || selectedEvidence.evidence_type}
                     </Badge>
                   </div>
                   <div>
@@ -347,7 +416,7 @@ export default function EvidencePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">Uploaded By</Label>
-                    <p className="text-sm">{selectedEvidence.uploaded_by}</p>
+                    <p className="text-sm">{selectedEvidence.uploaded_by_name || selectedEvidence.uploaded_by}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Uploaded</Label>
@@ -389,8 +458,8 @@ function EvidenceTable({
   evidence,
   onSelect
 }: {
-  evidence: MockEvidence[]
-  onSelect: (e: MockEvidence) => void
+  evidence: EvidenceWithDetails[]
+  onSelect: (e: EvidenceWithDetails) => void
 }) {
   if (evidence.length === 0) {
     return (
@@ -423,7 +492,7 @@ function EvidenceTable({
               <TableCell className="font-mono text-sm">{e.control_id}</TableCell>
               <TableCell>
                 <div>
-                  <div className="font-medium">{e.name}</div>
+                  <div className="font-medium">{e.title}</div>
                   {e.description && (
                     <div className="text-xs text-muted-foreground truncate max-w-xs">
                       {e.description}
@@ -432,8 +501,8 @@ function EvidenceTable({
                 </div>
               </TableCell>
               <TableCell>
-                <Badge className={evidenceTypeConfig[e.evidence_type].color}>
-                  {evidenceTypeConfig[e.evidence_type].label}
+                <Badge className={evidenceTypeConfig[e.evidence_type as EvidenceType]?.color || 'bg-gray-100 text-gray-800'}>
+                  {evidenceTypeConfig[e.evidence_type as EvidenceType]?.label || e.evidence_type}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -467,17 +536,29 @@ function UploadDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  controls: { control_id: string; name: string }[]
-  onUpload: (data: Partial<MockEvidence>) => void
+  controls: ControlWithStatus[]
+  onUpload: (data: { control_id: string; title: string; description?: string; evidence_type: string; stage_acceptable: 'stage_1' | 'stage_2' | 'both' }) => void
 }) {
-  const [formData, setFormData] = useState<Partial<MockEvidence>>({
+  const [formData, setFormData] = useState<{
+    control_id?: string
+    title?: string
+    description?: string
+    evidence_type: string
+    stage_acceptable: 'stage_1' | 'stage_2' | 'both'
+  }>({
     evidence_type: 'policy',
     stage_acceptable: 'stage_2'
   })
 
   const handleSubmit = () => {
-    if (!formData.control_id || !formData.name) return
-    onUpload(formData)
+    if (!formData.control_id || !formData.title) return
+    onUpload({
+      control_id: formData.control_id,
+      title: formData.title,
+      description: formData.description,
+      evidence_type: formData.evidence_type,
+      stage_acceptable: formData.stage_acceptable
+    })
     setFormData({ evidence_type: 'policy', stage_acceptable: 'stage_2' })
   }
 
@@ -502,7 +583,7 @@ function UploadDialog({
               </SelectTrigger>
               <SelectContent>
                 {controls.map(c => (
-                  <SelectItem key={c.control_id} value={c.control_id}>
+                  <SelectItem key={c.id} value={c.id}>
                     {c.control_id} - {c.name}
                   </SelectItem>
                 ))}
@@ -510,11 +591,11 @@ function UploadDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="name">Evidence Name *</Label>
+            <Label htmlFor="title">Evidence Name *</Label>
             <Input
-              id="name"
-              value={formData.name || ''}
-              onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              id="title"
+              value={formData.title || ''}
+              onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))}
               placeholder="e.g., Access Control Policy v2.0"
             />
           </div>
@@ -533,7 +614,7 @@ function UploadDialog({
               <Label>Evidence Type</Label>
               <Select
                 value={formData.evidence_type}
-                onValueChange={v => setFormData(prev => ({ ...prev, evidence_type: v as EvidenceType }))}
+                onValueChange={v => setFormData(prev => ({ ...prev, evidence_type: v }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -549,7 +630,7 @@ function UploadDialog({
               <Label>Audit Stage</Label>
               <Select
                 value={formData.stage_acceptable}
-                onValueChange={v => setFormData(prev => ({ ...prev, stage_acceptable: v as MockEvidence['stage_acceptable'] }))}
+                onValueChange={v => setFormData(prev => ({ ...prev, stage_acceptable: v as 'stage_1' | 'stage_2' | 'both' }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -580,7 +661,7 @@ function UploadDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!formData.control_id || !formData.name}
+            disabled={!formData.control_id || !formData.title}
           >
             Upload Evidence
           </Button>
