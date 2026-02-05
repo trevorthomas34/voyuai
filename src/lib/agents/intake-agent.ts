@@ -5,9 +5,19 @@
 
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-})
+// Lazy-load OpenAI client to avoid build-time initialization errors
+let openaiClient: OpenAI | null = null
+
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not set')
+    }
+    openaiClient = new OpenAI({ apiKey })
+  }
+  return openaiClient
+}
 
 export interface IntakeResponses {
   org_name: string
@@ -137,6 +147,7 @@ export async function generateDraftScope(responses: IntakeResponses): Promise<Dr
   const prompt = SCOPE_GENERATION_PROMPT.replace('{responses}', formattedResponses)
 
   try {
+    const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
