@@ -31,6 +31,7 @@ export default function SignupPage() {
           data: {
             full_name: name,
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/confirmed`,
         },
       })
 
@@ -38,7 +39,7 @@ export default function SignupPage() {
         throw error
       }
 
-      router.push('/intake')
+      router.push('/signup/check-email')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account')
     } finally {

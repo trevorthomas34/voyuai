@@ -32,7 +32,14 @@ export default function LoginPage() {
         throw error
       }
 
-      router.push('/dashboard')
+      // Check if user has completed intake (has a scope record)
+      const { data: scope } = await supabase
+        .from('isms_scopes')
+        .select('id')
+        .limit(1)
+        .single()
+
+      router.push(scope ? '/dashboard' : '/intake')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in')
     } finally {

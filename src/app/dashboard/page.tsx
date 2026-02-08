@@ -10,12 +10,14 @@ import { getAssets } from '@/lib/data/assets'
 import { getRisks } from '@/lib/data/risks'
 import { getEvidence, getControlsWithEvidence } from '@/lib/data/evidence'
 import { getControlStats, type ControlStats } from '@/lib/data/controls'
+import { createClient } from '@/lib/supabase/client'
 
 interface DashboardStats {
   assets: { total: number; inScope: number; critical: number }
   risks: { total: number; high: number; approved: number; pending: number }
   controls: ControlStats
   evidence: { total: number; verified: number; controlsCovered: number }
+  scope: { exists: boolean; approved: boolean }
 }
 
 export default function DashboardPage() {
@@ -26,13 +28,17 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [assets, risks, evidence, controlStats, controlsWithEvidence] = await Promise.all([
+        const supabase = createClient()
+        const [assets, risks, evidence, controlStats, controlsWithEvidence, scopeResult] = await Promise.all([
           getAssets(),
           getRisks(),
           getEvidence(),
           getControlStats(),
-          getControlsWithEvidence()
+          getControlsWithEvidence(),
+          supabase.from('isms_scopes').select('*').limit(1).single()
         ])
+
+        const scopeData = scopeResult.data as { id: string; approved_at: string | null } | null
 
         setStats({
           assets: {
@@ -51,6 +57,10 @@ export default function DashboardPage() {
             total: evidence.length,
             verified: evidence.filter(e => e.verified).length,
             controlsCovered: controlsWithEvidence.length
+          },
+          scope: {
+            exists: !!scopeData,
+            approved: !!scopeData?.approved_at,
           }
         })
       } catch (error) {
@@ -93,7 +103,14 @@ export default function DashboardPage() {
 
   // Calculate phase progress
   const phases = {
-    intake: { status: 'complete' as const, progress: 100 },
+    intake: {
+      status: stats.scope.approved
+        ? 'complete' as const
+        : stats.scope.exists
+          ? 'in_progress' as const
+          : 'pending' as const,
+      progress: stats.scope.approved ? 100 : stats.scope.exists ? 50 : 0
+    },
     assets: {
       status: stats.assets.total > 0 ? 'complete' as const : 'pending' as const,
       progress: stats.assets.total > 0 ? 100 : 0
@@ -123,7 +140,9 @@ export default function DashboardPage() {
         : 0
     },
     soa: {
-      status: stats.controls.gap === 0 ? 'complete' as const : 'in_progress' as const,
+      status: (stats.controls.implemented + stats.controls.partial) > 0
+        ? (stats.controls.gap === 0 ? 'complete' as const : 'in_progress' as const)
+        : 'pending' as const,
       progress: stats.controls.applicable > 0
         ? Math.round(((stats.controls.implemented + stats.controls.partial) / stats.controls.applicable) * 100)
         : 0

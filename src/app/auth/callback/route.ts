@@ -10,7 +10,19 @@ export async function GET(request: Request) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      // Check if user has completed intake (has a scope record)
+      const { data: scope } = await supabase
+        .from('isms_scopes')
+        .select('id')
+        .limit(1)
+        .single()
+
+      // First-time users go to /intake, unless next is /auth/confirmed (email verification)
+      const destination = next === '/auth/confirmed'
+        ? next
+        : scope ? next : '/intake'
+
+      return NextResponse.redirect(`${origin}${destination}`)
     }
   }
 
