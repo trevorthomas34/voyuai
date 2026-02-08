@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { ensureUserExists } from '@/lib/supabase/ensure-user'
 import type { DraftISMSScope } from '@/lib/agents/intake-agent'
 import type { InsertTables, Tables, Json } from '@/types/supabase'
-
-type UserRow = Pick<Tables<'users'>, 'id' | 'organization_id' | 'role'>
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,19 +17,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user's organization
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, organization_id, role')
-      .eq('auth_user_id', user.id)
-      .single<UserRow>()
-
-    if (userError || !userData) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
-    }
+    // Ensure app-level user + org rows exist (auto-provisions on first use)
+    const userData = await ensureUserExists(user)
 
     // Only admins and consultants can approve scope
     if (!['admin', 'voyu_consultant'].includes(userData.role)) {
