@@ -1,20 +1,56 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AppHeader } from '@/components/layout/app-header'
 import { IntakeForm } from '@/components/intake/intake-form'
 import { DraftScopeReview } from '@/components/intake/draft-scope-review'
 import type { DraftISMSScope } from '@/lib/agents/intake-agent'
+import {
+  getIntakeResponses,
+  saveIntakeResponses,
+  getScope,
+  type SavedScope,
+} from '@/lib/data/intake'
 
-type IntakeStep = 'questionnaire' | 'review' | 'complete'
+type IntakeStep = 'loading' | 'questionnaire' | 'review' | 'scope'
 
 export default function IntakePage() {
-  const [step, setStep] = useState<IntakeStep>('questionnaire')
+  const [step, setStep] = useState<IntakeStep>('loading')
   const [responses, setResponses] = useState<Record<string, unknown>>({})
   const [draftScope, setDraftScope] = useState<DraftISMSScope | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // On mount, load saved responses and scope from DB
+  useEffect(() => {
+    async function loadSavedData() {
+      try {
+        const [savedResponses, savedScope] = await Promise.all([
+          getIntakeResponses().catch(() => ({})),
+          getScope().catch(() => null),
+        ])
+
+        if (Object.keys(savedResponses).length > 0) {
+          setResponses(savedResponses)
+        }
+
+        if (savedScope) {
+          // Reconstruct a DraftISMSScope from the saved scope + approval log metadata
+          setDraftScope(scopeToDraft(savedScope))
+          setStep('scope')
+        } else if (Object.keys(savedResponses).length > 0) {
+          setStep('questionnaire')
+        } else {
+          setStep('questionnaire')
+        }
+      } catch {
+        // If loading fails, just start fresh
+        setStep('questionnaire')
+      }
+    }
+    loadSavedData()
+  }, [])
 
   const handleSubmit = async (formResponses: Record<string, unknown>) => {
     setIsSubmitting(true)
@@ -22,6 +58,11 @@ export default function IntakePage() {
     setResponses(formResponses)
 
     try {
+      // Save responses to DB before generating
+      await saveIntakeResponses(formResponses).catch((err) =>
+        console.error('Failed to save responses:', err)
+      )
+
       const response = await fetch('/api/intake/generate-scope', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -45,8 +86,11 @@ export default function IntakePage() {
 
   const handleSaveDraft = async (formResponses: Record<string, unknown>) => {
     setResponses(formResponses)
-    // In a real app, this would save to the database
-    console.log('Draft saved:', formResponses)
+    try {
+      await saveIntakeResponses(formResponses)
+    } catch (err) {
+      console.error('Failed to save draft:', err)
+    }
   }
 
   const handleApprove = async () => {
@@ -59,7 +103,7 @@ export default function IntakePage() {
       const response = await fetch('/api/intake/approve-scope', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draftScope })
+        body: JSON.stringify({ draftScope, responses })
       })
 
       const data = await response.json()
@@ -68,7 +112,8 @@ export default function IntakePage() {
         throw new Error(data.error || 'Failed to approve scope')
       }
 
-      setStep('complete')
+      // After approval, show the scope in read-only mode
+      setStep('scope')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -84,6 +129,23 @@ export default function IntakePage() {
     handleSubmit(responses)
   }
 
+  const handleUpdateResponses = () => {
+    setStep('questionnaire')
+  }
+
+  if (step === 'loading') {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader subtitle="Context Intake Questionnaire" simple />
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center py-20">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader subtitle="Context Intake Questionnaire" simple />
@@ -95,20 +157,20 @@ export default function IntakePage() {
             number={1}
             label="Questionnaire"
             active={step === 'questionnaire'}
-            complete={step !== 'questionnaire'}
+            complete={step === 'review' || step === 'scope'}
           />
           <div className="w-16 h-0.5 bg-border" />
           <StepIndicator
             number={2}
             label="Review Scope"
             active={step === 'review'}
-            complete={step === 'complete'}
+            complete={step === 'scope'}
           />
           <div className="w-16 h-0.5 bg-border" />
           <StepIndicator
             number={3}
-            label="Complete"
-            active={step === 'complete'}
+            label="Approved"
+            active={step === 'scope'}
             complete={false}
           />
         </div>
@@ -140,12 +202,39 @@ export default function IntakePage() {
           />
         )}
 
-        {step === 'complete' && (
-          <CompletionMessage />
+        {step === 'scope' && draftScope && (
+          <DraftScopeReview
+            draftScope={draftScope}
+            onApprove={handleApprove}
+            onEdit={handleEdit}
+            onRegenerate={handleRegenerate}
+            isApproving={false}
+            readOnly
+            onUpdateResponses={handleUpdateResponses}
+          />
         )}
       </main>
     </div>
   )
+}
+
+/**
+ * Reconstruct a DraftISMSScope from the saved DB scope + approval log metadata.
+ */
+function scopeToDraft(saved: SavedScope): DraftISMSScope {
+  const { scope } = saved
+  const boundaries = (scope.boundaries ?? { physical: [], logical: [], organizational: [] }) as DraftISMSScope['boundaries']
+
+  return {
+    scopeStatement: scope.scope_statement,
+    boundaries,
+    exclusions: scope.exclusions ? scope.exclusions.split('\n').filter(Boolean) : [],
+    interestedParties: (scope.interested_parties ?? []) as unknown as DraftISMSScope['interestedParties'],
+    regulatoryRequirements: (scope.regulatory_requirements ?? []) as unknown as DraftISMSScope['regulatoryRequirements'],
+    annexAAssumptions: saved.annexAAssumptions,
+    riskAreas: saved.riskAreas,
+    recommendations: saved.recommendations,
+  }
 }
 
 function StepIndicator({
@@ -173,47 +262,6 @@ function StepIndicator({
       <span className={`text-sm ${active ? 'font-medium' : 'text-muted-foreground'}`}>
         {label}
       </span>
-    </div>
-  )
-}
-
-function CompletionMessage() {
-  return (
-    <div className="max-w-2xl mx-auto text-center">
-      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-        <svg
-          className="w-10 h-10 text-green-600"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M5 13l4 4L19 7"
-          />
-        </svg>
-      </div>
-      <h2 className="text-2xl font-bold mb-4">ISMS Scope Approved!</h2>
-      <p className="text-muted-foreground mb-8">
-        Your ISMS scope has been approved and recorded in the audit log.
-        You can now proceed to the next phase: Risk Assessment.
-      </p>
-      <div className="space-x-4">
-        <a
-          href="/dashboard"
-          className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Go to Dashboard
-        </a>
-        <a
-          href="/risks"
-          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-        >
-          Start Risk Assessment →
-        </a>
-      </div>
     </div>
   )
 }

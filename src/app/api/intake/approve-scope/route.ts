@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const draftScope = body.draftScope as DraftISMSScope
     const comment = body.comment as string | undefined
+    const intakeResponses = body.responses as Record<string, unknown> | undefined
 
     if (!draftScope) {
       return NextResponse.json(
@@ -102,6 +103,27 @@ export async function POST(request: NextRequest) {
     if (logError) {
       console.error('Error creating approval log:', logError)
       // Don't fail the request, scope was saved
+    }
+
+    // Save intake responses alongside approval so they persist
+    if (intakeResponses && Object.keys(intakeResponses).length > 0) {
+      const responseRows = Object.entries(intakeResponses).map(([key, value]) => ({
+        organization_id: userData.organization_id,
+        question_key: key,
+        response: value as Json,
+        updated_at: new Date().toISOString(),
+      }))
+
+      const { error: responsesError } = await admin
+        .from('intake_responses')
+        .upsert(responseRows as never[], {
+          onConflict: 'organization_id,question_key',
+        })
+
+      if (responsesError) {
+        console.error('Error saving intake responses:', responsesError)
+        // Don't fail the request, scope was already saved
+      }
     }
 
     return NextResponse.json({
