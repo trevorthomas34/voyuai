@@ -6,29 +6,15 @@ export type IntakeResponse = Tables<'intake_responses'>
 export type ISMSScope = Tables<'isms_scopes'>
 
 /**
- * Fetch all intake_responses rows for the current user's org,
- * returned as a Record keyed by question_key.
+ * Fetch all intake_responses rows for the current user's org
+ * (RLS filters by org automatically), returned as a Record keyed by question_key.
  */
 export async function getIntakeResponses(): Promise<Record<string, unknown>> {
   const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('organization_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (userError || !userData) throw userError ?? new Error('User not found')
-
-  const orgId = (userData as { organization_id: string }).organization_id
-
   const { data, error } = await supabase
     .from('intake_responses')
     .select('question_key, response')
-    .eq('organization_id', orgId)
 
   if (error) throw error
 
@@ -42,25 +28,16 @@ export async function getIntakeResponses(): Promise<Record<string, unknown>> {
 /**
  * Upsert each key/value into intake_responses using the
  * UNIQUE(organization_id, question_key) constraint.
+ * Uses the DB's get_user_organization_id() RPC to get the org id.
  */
 export async function saveIntakeResponses(responses: Record<string, unknown>): Promise<void> {
   const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('organization_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (userError || !userData) throw userError ?? new Error('User not found')
-
-  const orgId = (userData as { organization_id: string }).organization_id
+  const { data: orgId, error: orgError } = await supabase.rpc('get_user_organization_id')
+  if (orgError || !orgId) throw orgError ?? new Error('Could not resolve organization')
 
   const rows = Object.entries(responses).map(([key, value]) => ({
-    organization_id: orgId,
+    organization_id: orgId as string,
     question_key: key,
     response: value as Json,
     updated_at: new Date().toISOString(),
@@ -85,30 +62,18 @@ export interface SavedScope {
 }
 
 /**
- * Fetch the isms_scopes row for the current user's org plus the latest
- * approval_logs metadata (annexAAssumptions, riskAreas, recommendations).
+ * Fetch the isms_scopes row for the current user's org (RLS filters
+ * automatically) plus the latest approval_logs metadata.
  * Returns null if no scope exists.
  */
 export async function getScope(): Promise<SavedScope | null> {
   const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('organization_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (userError || !userData) throw userError ?? new Error('User not found')
-
-  const orgId = (userData as { organization_id: string }).organization_id
-
+  // RLS ensures we only see our own org's scope
   const { data: scopeData, error: scopeError } = await supabase
     .from('isms_scopes')
     .select('*')
-    .eq('organization_id', orgId)
+    .limit(1)
     .single<Tables<'isms_scopes'>>()
 
   if (scopeError) {
