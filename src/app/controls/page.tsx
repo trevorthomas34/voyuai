@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { AppHeader } from '@/components/layout/app-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -84,22 +84,7 @@ export default function ControlsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Voyu</h1>
-            <p className="text-sm text-muted-foreground">Annex A Controls</p>
-          </div>
-          <nav className="flex items-center space-x-4">
-            <Link href="/dashboard" className="text-sm hover:underline">Dashboard</Link>
-            <Link href="/assets" className="text-sm hover:underline">Assets</Link>
-            <Link href="/risks" className="text-sm hover:underline">Risks</Link>
-            <Link href="/controls" className="text-sm font-medium">Controls</Link>
-            <Link href="/soa" className="text-sm hover:underline">SoA</Link>
-          </nav>
-        </div>
-      </header>
+      <AppHeader subtitle="Annex A Controls" currentPage="controls" />
 
       <main className="container mx-auto px-4 py-8">
         {/* Stats Cards */}

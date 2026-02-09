@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { AppHeader } from '@/components/layout/app-header'
 import { IntakeForm } from '@/components/intake/intake-form'
 import { DraftScopeReview } from '@/components/intake/draft-scope-review'
 import type { DraftISMSScope } from '@/lib/agents/intake-agent'
@@ -85,12 +86,7 @@ export default function IntakePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold">Voyu - ISO 27001 ISMS</h1>
-          <p className="text-muted-foreground">Context Intake Questionnaire</p>
-        </div>
-      </header>
+      <AppHeader subtitle="Context Intake Questionnaire" simple />
 
       <main className="container mx-auto px-4 py-8">
         {/* Step indicator */}

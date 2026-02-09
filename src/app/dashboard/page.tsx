@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AppHeader } from '@/components/layout/app-header'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
@@ -76,22 +77,7 @@ export default function DashboardPage() {
   if (loading || !stats) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold">Voyu</h1>
-              <p className="text-sm text-muted-foreground">ISMS Dashboard</p>
-            </div>
-            <nav className="flex items-center space-x-4">
-              <Link href="/dashboard" className="text-sm font-medium">Dashboard</Link>
-              <Link href="/assets" className="text-sm hover:underline">Assets</Link>
-              <Link href="/risks" className="text-sm hover:underline">Risks</Link>
-              <Link href="/controls" className="text-sm hover:underline">Controls</Link>
-              <Link href="/evidence" className="text-sm hover:underline">Evidence</Link>
-              <Link href="/soa" className="text-sm hover:underline">SoA</Link>
-            </nav>
-          </div>
-        </header>
+        <AppHeader subtitle="ISMS Dashboard" currentPage="dashboard" />
         <main className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center h-64">
             <p className="text-muted-foreground">Loading dashboard...</p>
@@ -155,23 +141,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Voyu</h1>
-            <p className="text-sm text-muted-foreground">ISMS Dashboard</p>
-          </div>
-          <nav className="flex items-center space-x-4">
-            <Link href="/dashboard" className="text-sm font-medium">Dashboard</Link>
-            <Link href="/assets" className="text-sm hover:underline">Assets</Link>
-            <Link href="/risks" className="text-sm hover:underline">Risks</Link>
-            <Link href="/controls" className="text-sm hover:underline">Controls</Link>
-            <Link href="/evidence" className="text-sm hover:underline">Evidence</Link>
-            <Link href="/soa" className="text-sm hover:underline">SoA</Link>
-          </nav>
-        </div>
-      </header>
+      <AppHeader subtitle="ISMS Dashboard" currentPage="dashboard" />
 
       <main className="container mx-auto px-4 py-8">
         {/* Overall Progress */}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { AppHeader } from '@/components/layout/app-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -146,21 +146,7 @@ export default function RisksPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold">Voyu</h1>
-              <p className="text-sm text-muted-foreground">Risk Register</p>
-            </div>
-            <nav className="flex items-center space-x-4">
-              <Link href="/dashboard" className="text-sm hover:underline">Dashboard</Link>
-              <Link href="/assets" className="text-sm hover:underline">Assets</Link>
-              <Link href="/risks" className="text-sm font-medium">Risks</Link>
-              <Link href="/controls" className="text-sm hover:underline">Controls</Link>
-              <Link href="/soa" className="text-sm hover:underline">SoA</Link>
-            </nav>
-          </div>
-        </header>
+        <AppHeader subtitle="Risk Register" currentPage="risks" />
         <main className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center h-64">
             <p className="text-muted-foreground">Loading risks...</p>
@@ -172,22 +158,7 @@ export default function RisksPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Voyu</h1>
-            <p className="text-sm text-muted-foreground">Risk Register</p>
-          </div>
-          <nav className="flex items-center space-x-4">
-            <Link href="/dashboard" className="text-sm hover:underline">Dashboard</Link>
-            <Link href="/assets" className="text-sm hover:underline">Assets</Link>
-            <Link href="/risks" className="text-sm font-medium">Risks</Link>
-            <Link href="/controls" className="text-sm hover:underline">Controls</Link>
-            <Link href="/soa" className="text-sm hover:underline">SoA</Link>
-          </nav>
-        </div>
-      </header>
+      <AppHeader subtitle="Risk Register" currentPage="risks" />
 
       <main className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
