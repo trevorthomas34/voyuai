@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureUserExists } from '@/lib/supabase/ensure-user'
 import type { DraftISMSScope } from '@/lib/agents/intake-agent'
 import type { InsertTables, Tables, Json } from '@/types/supabase'
+import { seedStarterData } from '@/lib/seed-starter-data'
 
 export async function POST(request: NextRequest) {
   try {
@@ -124,6 +125,14 @@ export async function POST(request: NextRequest) {
         console.error('Error saving intake responses:', responsesError)
         // Don't fail the request, scope was already saved
       }
+    }
+
+    // Seed starter data (assets, risks, controls, SoA) from intake context
+    // Non-blocking: errors are logged but don't fail the approval
+    try {
+      await seedStarterData(admin, userData, draftScope, intakeResponses)
+    } catch (seedError) {
+      console.error('Error seeding starter data:', seedError)
     }
 
     return NextResponse.json({
