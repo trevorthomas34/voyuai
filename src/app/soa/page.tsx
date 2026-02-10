@@ -260,9 +260,11 @@ export default function SoAPage() {
                   <SelectItem value="not_applicable">Not Applicable</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" className="ml-auto">
-                Export to CSV
-              </Button>
+              <Link href="/report">
+                <Button variant="outline" className="ml-auto">
+                  Export ISMS Report
+                </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>

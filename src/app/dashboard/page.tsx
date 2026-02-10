@@ -147,8 +147,15 @@ export default function DashboardPage() {
         {/* Overall Progress */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>ISMS Implementation Progress</CardTitle>
-            <CardDescription>Track your journey to ISO 27001 certification</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>ISMS Implementation Progress</CardTitle>
+                <CardDescription>Track your journey to ISO 27001 certification</CardDescription>
+              </div>
+              <Link href="/report">
+                <Button variant="outline" size="sm">Export ISMS Report</Button>
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
