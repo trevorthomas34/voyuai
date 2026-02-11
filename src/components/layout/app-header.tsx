@@ -20,7 +20,7 @@ interface AppHeaderProps {
 
 export function AppHeader({ subtitle, currentPage, simple }: AppHeaderProps) {
   return (
-    <header className="border-b">
+    <header className="border-b border-border/50">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Voyu</h1>
