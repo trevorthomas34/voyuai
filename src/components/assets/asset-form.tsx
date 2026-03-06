@@ -30,7 +30,7 @@ interface AssetFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   asset?: Asset | null
-  onSave: (asset: Partial<Asset>) => void
+  onSave: (asset: Partial<Asset>) => Promise<void>
 }
 
 const assetTypes: { value: AssetType; label: string }[] = [
@@ -54,27 +54,25 @@ export function AssetForm({ open, onOpenChange, asset, onSave }: AssetFormProps)
   const [description, setDescription] = useState(asset?.description || '')
   const [criticality, setCriticality] = useState<Criticality>(asset?.criticality || 'medium')
   const [inScope, setInScope] = useState(asset?.in_scope ?? true)
+  const [saving, setSaving] = useState(false)
 
   const isEdit = !!asset
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
-      id: asset?.id,
-      name,
-      asset_type: assetType,
-      description: description || null,
-      criticality,
-      in_scope: inScope
-    })
-    onOpenChange(false)
-    // Reset form
-    if (!isEdit) {
-      setName('')
-      setAssetType('hardware')
-      setDescription('')
-      setCriticality('medium')
-      setInScope(true)
+    setSaving(true)
+    try {
+      await onSave({
+        id: asset?.id,
+        name,
+        asset_type: assetType,
+        description: description || null,
+        criticality,
+        in_scope: inScope
+      })
+      onOpenChange(false)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -159,10 +157,12 @@ export function AssetForm({ open, onOpenChange, asset, onSave }: AssetFormProps)
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit">{isEdit ? 'Save Changes' : 'Add Asset'}</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Asset'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

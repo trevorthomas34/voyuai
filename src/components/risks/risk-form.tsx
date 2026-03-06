@@ -110,12 +110,12 @@ export function RiskForm({ open, onOpenChange, risk, assets, onSave }: RiskFormP
             {/* Asset Selection */}
             <div className="space-y-2">
               <Label htmlFor="asset">Related Asset</Label>
-              <Select value={assetId || ''} onValueChange={v => setAssetId(v || null)}>
+              <Select value={assetId || 'none'} onValueChange={v => setAssetId(v === 'none' ? null : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an asset (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No specific asset</SelectItem>
+                  <SelectItem value="none">No specific asset</SelectItem>
                   {assets.filter(a => a.in_scope).map(asset => (
                     <SelectItem key={asset.id} value={asset.id}>
                       {asset.name}

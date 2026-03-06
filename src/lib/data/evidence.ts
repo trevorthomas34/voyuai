@@ -66,29 +66,22 @@ export async function createEvidence(evidence: {
 }): Promise<Evidence> {
   const supabase = createClient()
 
-  // Get the current user's info
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('id, organization_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (userError || !userData) throw userError ?? new Error('User not found')
-
-  const userInfo = userData as { id: string; organization_id: string }
+  const [{ data: organizationId, error: orgError }, { data: userId, error: userError }] = await Promise.all([
+    supabase.rpc('get_user_organization_id'),
+    supabase.rpc('get_current_user_id')
+  ])
+  if (orgError || !organizationId) throw orgError ?? new Error('Could not resolve organization')
+  if (userError || !userId) throw userError ?? new Error('Could not resolve user')
 
   const insertData: EvidenceInsert = {
-    organization_id: userInfo.organization_id,
+    organization_id: organizationId as string,
     control_id: evidence.control_id,
     title: evidence.title,
     description: evidence.description ?? null,
     evidence_type: evidence.evidence_type,
     evidence_url: evidence.evidence_url,
     stage_acceptable: evidence.stage_acceptable ?? 'stage_2',
-    uploaded_by: userInfo.id
+    uploaded_by: userId as string
   }
 
   const { data, error } = await supabase

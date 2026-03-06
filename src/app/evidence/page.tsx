@@ -94,14 +94,35 @@ export default function EvidencePage() {
     ? Math.round((controlsWithEvidence.size / implementedControls.length) * 100)
     : 0
 
-  const handleUpload = async (data: { control_id: string; title: string; description?: string; evidence_type: string; stage_acceptable: 'stage_1' | 'stage_2' | 'both' }) => {
+  const handleUpload = async (data: { control_id: string; title: string; description?: string; evidence_type: string; stage_acceptable: 'stage_1' | 'stage_2' | 'both'; file?: File }) => {
     try {
+      let evidence_url = ''
+      if (data.file) {
+        try {
+          const { createClient } = await import('@/lib/supabase/client')
+          const supabase = createClient()
+          const ext = data.file.name.split('.').pop()
+          const path = `${data.control_id}/${Date.now()}.${ext}`
+          const { error: uploadError } = await supabase.storage
+            .from('Evidence')
+            .upload(path, data.file)
+          if (uploadError) {
+            console.error('Storage upload failed:', uploadError)
+            throw uploadError
+          } else {
+            // Store the path, not a public URL — signed URLs are generated on view
+            evidence_url = path
+          }
+        } catch (storageErr) {
+          console.warn('File storage unavailable, saving evidence without file:', storageErr)
+        }
+      }
       const created = await createEvidence({
         control_id: data.control_id,
         title: data.title,
         description: data.description || null,
         evidence_type: data.evidence_type,
-        evidence_url: '', // Would be set by actual file upload
+        evidence_url,
         stage_acceptable: data.stage_acceptable
       })
       const control = controls.find(c => c.id === created.control_id)
@@ -404,6 +425,19 @@ export default function EvidencePage() {
                     )}
                   </div>
                 </div>
+                {selectedEvidence.evidence_url && (
+                  <div>
+                    <Label className="text-muted-foreground">File</Label>
+                    <div className="mt-1">
+                      <button
+                        onClick={() => openEvidenceFile(selectedEvidence.evidence_url)}
+                        className="text-sm text-primary underline hover:opacity-80"
+                      >
+                        View / Download File
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setSelectedEvidence(null)}>
@@ -421,6 +455,14 @@ export default function EvidencePage() {
       </Dialog>
     </div>
   )
+}
+
+async function openEvidenceFile(path: string) {
+  const { createClient } = await import('@/lib/supabase/client')
+  const supabase = createClient()
+  const { data, error } = await supabase.storage.from('Evidence').createSignedUrl(path, 60 * 30) // 30 min
+  if (error || !data) { alert('Could not open file.'); return }
+  window.open(data.signedUrl, '_blank')
 }
 
 function EvidenceTable({
@@ -449,6 +491,7 @@ function EvidenceTable({
             <TableHead className="w-24">Stage</TableHead>
             <TableHead className="w-24">Status</TableHead>
             <TableHead className="w-28">Uploaded</TableHead>
+            <TableHead className="w-16">File</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -489,6 +532,18 @@ function EvidenceTable({
               <TableCell className="text-sm text-muted-foreground">
                 {new Date(e.uploaded_at).toLocaleDateString()}
               </TableCell>
+              <TableCell onClick={ev => ev.stopPropagation()}>
+                {e.evidence_url ? (
+                  <button
+                    onClick={() => openEvidenceFile(e.evidence_url)}
+                    className="text-xs text-primary underline hover:opacity-80"
+                  >
+                    View
+                  </button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No file</span>
+                )}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -506,7 +561,7 @@ function UploadDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   controls: ControlWithStatus[]
-  onUpload: (data: { control_id: string; title: string; description?: string; evidence_type: string; stage_acceptable: 'stage_1' | 'stage_2' | 'both' }) => void
+  onUpload: (data: { control_id: string; title: string; description?: string; evidence_type: string; stage_acceptable: 'stage_1' | 'stage_2' | 'both'; file?: File }) => void
 }) {
   const [formData, setFormData] = useState<{
     control_id?: string
@@ -518,6 +573,15 @@ function UploadDialog({
     evidence_type: 'policy',
     stage_acceptable: 'stage_2'
   })
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [dragging, setDragging] = useState(false)
+
+  const handleFile = (file: File) => {
+    setSelectedFile(file)
+    if (!formData.title) {
+      setFormData(prev => ({ ...prev, title: file.name.replace(/\.[^.]+$/, '') }))
+    }
+  }
 
   const handleSubmit = () => {
     if (!formData.control_id || !formData.title) return
@@ -526,9 +590,11 @@ function UploadDialog({
       title: formData.title,
       description: formData.description,
       evidence_type: formData.evidence_type,
-      stage_acceptable: formData.stage_acceptable
+      stage_acceptable: formData.stage_acceptable,
+      file: selectedFile ?? undefined
     })
     setFormData({ evidence_type: 'policy', stage_acceptable: 'stage_2' })
+    setSelectedFile(null)
   }
 
   return (
@@ -614,14 +680,29 @@ function UploadDialog({
           </div>
           <div className="space-y-2">
             <Label>File Upload</Label>
-            <div className="border-2 border-dashed rounded-lg p-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                Drag and drop a file here, or click to browse
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                (File upload will connect to Google Drive in production)
-              </p>
-            </div>
+            <label
+              className={`block border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30 hover:border-primary/50'}`}
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+            >
+              <input
+                type="file"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+              />
+              {selectedFile ? (
+                <div>
+                  <p className="text-sm font-medium">{selectedFile.name}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-muted-foreground">Drag and drop a file here, or click to browse</p>
+                  <p className="text-xs text-muted-foreground mt-1">PDF, PNG, JPG, DOCX, XLSX supported</p>
+                </div>
+              )}
+            </label>
           </div>
         </div>
         <DialogFooter>

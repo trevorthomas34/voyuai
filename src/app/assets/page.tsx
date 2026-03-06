@@ -60,25 +60,20 @@ export default function AssetsPage() {
   }
 
   const handleSaveAsset = async (assetData: Partial<Asset>) => {
-    try {
-      if (assetData.id) {
-        // Update existing
-        const updated = await updateAsset(assetData.id, assetData)
-        setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))
-      } else {
-        // Add new
-        const created = await createAsset({
-          name: assetData.name || '',
-          asset_type: assetData.asset_type || 'hardware',
-          description: assetData.description || null,
-          criticality: assetData.criticality || 'medium',
-          in_scope: assetData.in_scope ?? true
-        })
-        setAssets(prev => [created, ...prev])
-      }
-      setFormOpen(false)
-    } catch (error) {
-      console.error('Failed to save asset:', error)
+    if (assetData.id) {
+      // Update existing
+      const updated = await updateAsset(assetData.id, assetData)
+      setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))
+    } else {
+      // Add new
+      const created = await createAsset({
+        name: assetData.name || '',
+        asset_type: assetData.asset_type || 'hardware',
+        description: assetData.description || null,
+        criticality: assetData.criticality || 'medium',
+        in_scope: assetData.in_scope ?? true
+      })
+      setAssets(prev => [created, ...prev])
     }
   }
 
@@ -208,6 +203,7 @@ export default function AssetsPage() {
 
       {/* Add/Edit Form Dialog */}
       <AssetForm
+        key={editingAsset?.id ?? 'new'}
         open={formOpen}
         onOpenChange={setFormOpen}
         asset={editingAsset}
