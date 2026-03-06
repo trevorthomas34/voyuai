@@ -19,11 +19,14 @@ import { ApprovalDialog } from '@/components/risks/approval-dialog'
 import { riskLevelConfig } from '@/lib/mock-data'
 import { getRisks, createRisk, updateRisk, deleteRisk as deleteRiskApi, approveRisk, type RiskWithAsset } from '@/lib/data/risks'
 import { getAssets, type Asset } from '@/lib/data/assets'
+import { getOrganizationUsers, getCurrentUserRole, type OrgUser } from '@/lib/data/users'
 import type { RiskLevel, StatusType } from '@/types/database'
 
 export default function RisksPage() {
   const [risks, setRisks] = useState<RiskWithAsset[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
+  const [users, setUsers] = useState<OrgUser[]>([])
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [levelFilter, setLevelFilter] = useState<RiskLevel | 'all'>('all')
@@ -36,14 +39,18 @@ export default function RisksPage() {
 
   // Fetch data on mount
   useEffect(() => {
-    Promise.all([getRisks(), getAssets()])
-      .then(([risksData, assetsData]) => {
+    Promise.all([getRisks(), getAssets(), getOrganizationUsers(), getCurrentUserRole()])
+      .then(([risksData, assetsData, usersData, role]) => {
         setRisks(risksData)
         setAssets(assetsData)
+        setUsers(usersData)
+        setUserRole(role)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  const canApprove = userRole === 'admin' || userRole === 'voyu_consultant'
 
   // Filter risks
   const filteredRisks = risks.filter(risk => {
@@ -247,6 +254,7 @@ export default function RisksPage() {
                 onEdit={handleEditRisk}
                 onDelete={handleDeleteRisk}
                 onApprove={handleApproveRisk}
+                canApprove={canApprove}
               />
             )}
           </CardContent>
@@ -259,6 +267,7 @@ export default function RisksPage() {
         onOpenChange={setFormOpen}
         risk={editingRisk}
         assets={assets}
+        users={users}
         onSave={handleSaveRisk}
       />
 

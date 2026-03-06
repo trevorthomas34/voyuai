@@ -31,9 +31,10 @@ interface RiskTableProps {
   onEdit: (risk: Risk) => void
   onDelete: (risk: Risk) => void
   onApprove: (risk: Risk) => void
+  canApprove?: boolean
 }
 
-export function RiskTable({ risks, onEdit, onDelete, onApprove }: RiskTableProps) {
+export function RiskTable({ risks, onEdit, onDelete, onApprove, canApprove = false }: RiskTableProps) {
   if (risks.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -114,7 +115,7 @@ export function RiskTable({ risks, onEdit, onDelete, onApprove }: RiskTableProps
                     <DropdownMenuItem onClick={() => onEdit(risk)}>
                       Edit
                     </DropdownMenuItem>
-                    {risk.status === 'draft' && (
+                    {risk.status === 'draft' && canApprove && (
                       <DropdownMenuItem onClick={() => onApprove(risk)}>
                         Approve Risk
                       </DropdownMenuItem>

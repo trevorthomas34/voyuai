@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AppHeader } from '@/components/layout/app-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,22 +32,35 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import {
-  annexAControls,
   controlThemeLabels,
   controlThemeDescriptions,
   implementationStatusConfig,
-  getControlsByTheme,
-  getControlStats,
-  type ControlData
 } from '@/lib/controls-data'
+import { getOrganizationControls, updateOrganizationControl, type ControlWithStatus } from '@/lib/data/controls'
+import { createEvidence, getEvidence, type EvidenceWithDetails } from '@/lib/data/evidence'
+import { evidenceTypeConfig } from '@/lib/mock-data'
 import type { ControlTheme, ImplementationStatus } from '@/types/database'
 
 export default function ControlsPage() {
-  const [controls, setControls] = useState<ControlData[]>(annexAControls)
+  const [controls, setControls] = useState<ControlWithStatus[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<ImplementationStatus | 'all'>('all')
   const [applicableFilter, setApplicableFilter] = useState<'all' | 'applicable' | 'not_applicable'>('all')
-  const [editingControl, setEditingControl] = useState<ControlData | null>(null)
+  const [editingControl, setEditingControl] = useState<ControlWithStatus | null>(null)
+  const [evidenceControl, setEvidenceControl] = useState<ControlWithStatus | null>(null)
+  const [viewingEvidenceControl, setViewingEvidenceControl] = useState<ControlWithStatus | null>(null)
+  const [allEvidence, setAllEvidence] = useState<EvidenceWithDetails[]>([])
+
+  useEffect(() => {
+    Promise.all([getOrganizationControls(), getEvidence()])
+      .then(([controlsData, evidenceData]) => {
+        setControls(controlsData)
+        setAllEvidence(evidenceData)
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
   // Filter controls
   const filteredControls = controls.filter(control => {
@@ -70,16 +83,75 @@ export default function ControlsPage() {
     technological: filteredControls.filter(c => c.theme === 'technological')
   }
 
-  const stats = getControlStats(controls)
+  const applicable = controls.filter(c => c.applicable)
+  const stats = {
+    total: controls.length,
+    applicable: applicable.length,
+    implemented: applicable.filter(c => c.implementation_status === 'implemented').length,
+    partial: applicable.filter(c => c.implementation_status === 'partial').length,
+    gap: applicable.filter(c => c.implementation_status === 'gap').length,
+  }
   const implementedPercentage = stats.applicable > 0
     ? Math.round((stats.implemented / stats.applicable) * 100)
     : 0
 
-  const handleUpdateControl = (updatedControl: ControlData) => {
-    setControls(prev => prev.map(c =>
-      c.id === updatedControl.id ? updatedControl : c
-    ))
-    setEditingControl(null)
+  const handleUpdateControl = async (updatedControl: ControlWithStatus) => {
+    try {
+      await updateOrganizationControl(updatedControl.id, {
+        applicable: updatedControl.applicable,
+        justification: updatedControl.justification ?? undefined,
+        implementation_status: updatedControl.implementation_status
+      })
+      setControls(prev => prev.map(c => c.id === updatedControl.id ? updatedControl : c))
+      setEditingControl(null)
+    } catch (error) {
+      console.error('Failed to save control:', error)
+    }
+  }
+
+  const handleOpenEvidence = (control: ControlWithStatus) => setEvidenceControl(control)
+  const handleViewEvidence = (control: ControlWithStatus) => setViewingEvidenceControl(control)
+  const getEvidenceForControl = (controlId: string) => allEvidence.filter(e => e.control_id === controlId)
+
+  const handleSaveEvidence = async (data: { title: string; description?: string; evidence_type: string; stage_acceptable: 'stage_1' | 'stage_2' | 'both'; file?: File }) => {
+    if (!evidenceControl) return
+    try {
+      let evidence_url = ''
+      if (data.file) {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const ext = data.file.name.split('.').pop()
+        const path = `${evidenceControl.id}/${Date.now()}.${ext}`
+        const { error: uploadError } = await supabase.storage.from('Evidence').upload(path, data.file)
+        if (uploadError) throw uploadError
+        evidence_url = path
+      }
+      const created = await createEvidence({
+        control_id: evidenceControl.id,
+        title: data.title,
+        description: data.description || null,
+        evidence_type: data.evidence_type,
+        evidence_url,
+        stage_acceptable: data.stage_acceptable
+      })
+      setAllEvidence(prev => [{ ...created, verified: false }, ...prev])
+      setEvidenceControl(null)
+    } catch (error) {
+      console.error('Failed to save evidence:', error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader subtitle="Annex A Controls" currentPage="controls" />
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading controls...</p>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -193,6 +265,9 @@ export default function ControlsPage() {
                         key={control.id}
                         control={control}
                         onEdit={() => setEditingControl(control)}
+                        onAddEvidence={() => handleOpenEvidence(control)}
+                        onViewEvidence={() => handleViewEvidence(control)}
+                        evidenceCount={getEvidenceForControl(control.id).length}
                       />
                     ))}
                     {controlsByTheme[theme].length === 0 && (
@@ -214,20 +289,34 @@ export default function ControlsPage() {
         onOpenChange={() => setEditingControl(null)}
         onSave={handleUpdateControl}
       />
+
+      {/* View Evidence Dialog */}
+      <ViewEvidenceDialog
+        control={viewingEvidenceControl}
+        evidence={viewingEvidenceControl ? getEvidenceForControl(viewingEvidenceControl.id) : []}
+        onOpenChange={() => setViewingEvidenceControl(null)}
+        onAddEvidence={() => { setEvidenceControl(viewingEvidenceControl); setViewingEvidenceControl(null) }}
+      />
+
+      {/* Add Evidence Dialog */}
+      <ControlEvidenceDialog
+        control={evidenceControl}
+        onOpenChange={() => setEvidenceControl(null)}
+        onSave={handleSaveEvidence}
+      />
     </div>
   )
 }
 
-function ControlCard({ control, onEdit }: { control: ControlData; onEdit: () => void }) {
+function ControlCard({ control, onEdit, onAddEvidence, onViewEvidence, evidenceCount }: { control: ControlWithStatus; onEdit: () => void; onAddEvidence: () => void; onViewEvidence: () => void; evidenceCount: number }) {
   return (
     <div
-      className={`p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors ${
+      className={`p-4 border rounded-lg hover:bg-muted/50 transition-colors ${
         !control.applicable ? 'opacity-60' : ''
       }`}
-      onClick={onEdit}
     >
       <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={onEdit}>
           <div className="flex items-center gap-2 mb-1">
             <span className="font-mono text-sm font-medium">{control.control_id}</span>
             <span className="font-medium">{control.name}</span>
@@ -239,16 +328,193 @@ function ControlCard({ control, onEdit }: { control: ControlData; onEdit: () => 
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {!control.applicable && (
             <Badge variant="outline">N/A</Badge>
           )}
           <Badge className={implementationStatusConfig[control.implementation_status].color}>
             {implementationStatusConfig[control.implementation_status].label}
           </Badge>
+          {control.applicable && (
+            <>
+              {evidenceCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={e => { e.stopPropagation(); onViewEvidence() }}
+                >
+                  Evidence ({evidenceCount})
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={e => { e.stopPropagation(); onAddEvidence() }}
+              >
+                + Evidence
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>
+  )
+}
+
+async function openEvidenceFile(path: string) {
+  const { createClient } = await import('@/lib/supabase/client')
+  const supabase = createClient()
+  const { data, error } = await supabase.storage.from('Evidence').createSignedUrl(path, 60 * 30)
+  if (error || !data) { alert('Could not open file.'); return }
+  window.open(data.signedUrl, '_blank')
+}
+
+function ViewEvidenceDialog({ control, evidence, onOpenChange, onAddEvidence }: {
+  control: ControlWithStatus | null
+  evidence: EvidenceWithDetails[]
+  onOpenChange: () => void
+  onAddEvidence: () => void
+}) {
+  if (!control) return null
+  return (
+    <Dialog open={!!control} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Evidence — {control.control_id}</DialogTitle>
+          <DialogDescription>{control.name}</DialogDescription>
+        </DialogHeader>
+        <div className="py-2 space-y-2 max-h-80 overflow-y-auto">
+          {evidence.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No evidence uploaded yet.</p>
+          ) : (
+            evidence.map(e => (
+              <div key={e.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{e.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {e.evidence_type} · {e.stage_acceptable} · {new Date(e.uploaded_at).toLocaleDateString()}
+                  </p>
+                </div>
+                {e.evidence_url && (
+                  <button
+                    onClick={() => openEvidenceFile(e.evidence_url)}
+                    className="text-xs text-primary underline ml-3 shrink-0"
+                  >
+                    View
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onOpenChange}>Close</Button>
+          <Button onClick={onAddEvidence}>+ Add Evidence</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ControlEvidenceDialog({
+  control,
+  onOpenChange,
+  onSave
+}: {
+  control: ControlWithStatus | null
+  onOpenChange: () => void
+  onSave: (data: { title: string; description?: string; evidence_type: string; stage_acceptable: 'stage_1' | 'stage_2' | 'both'; file?: File }) => void
+}) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [evidenceType, setEvidenceType] = useState('policy')
+  const [stage, setStage] = useState<'stage_1' | 'stage_2' | 'both'>('stage_2')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const handleFile = (file: File) => {
+    setSelectedFile(file)
+    if (!title) setTitle(file.name.replace(/\.[^.]+$/, ''))
+  }
+
+  const handleSubmit = async () => {
+    if (!title) return
+    setSaving(true)
+    await onSave({ title, description: description || undefined, evidence_type: evidenceType, stage_acceptable: stage, file: selectedFile ?? undefined })
+    setSaving(false)
+    setTitle(''); setDescription(''); setSelectedFile(null)
+  }
+
+  if (!control) return null
+
+  return (
+    <Dialog open={!!control} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Add Evidence</DialogTitle>
+          <DialogDescription>
+            <span className="font-mono">{control.control_id}</span> — {control.name}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Evidence Name *</Label>
+            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Access Control Policy v2.0" />
+          </div>
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description..." rows={2} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Evidence Type</Label>
+              <Select value={evidenceType} onValueChange={setEvidenceType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(evidenceTypeConfig).map(([value, config]) => (
+                    <SelectItem key={value} value={value}>{config.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Audit Stage</Label>
+              <Select value={stage} onValueChange={v => setStage(v as 'stage_1' | 'stage_2' | 'both')}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="stage_1">Stage 1 (Documentation)</SelectItem>
+                  <SelectItem value="stage_2">Stage 2 (Implementation)</SelectItem>
+                  <SelectItem value="both">Both Stages</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>File (optional)</Label>
+            <label
+              className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30 hover:border-primary/50'}`}
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+            >
+              <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+              {selectedFile ? (
+                <p className="text-sm font-medium">{selectedFile.name} <span className="text-muted-foreground">({(selectedFile.size / 1024).toFixed(1)} KB)</span></p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Drag and drop or click to browse</p>
+              )}
+            </label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onOpenChange}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={!title || saving}>
+            {saving ? 'Saving...' : 'Add Evidence'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -257,9 +523,9 @@ function ControlEditDialog({
   onOpenChange,
   onSave
 }: {
-  control: ControlData | null
+  control: ControlWithStatus | null
   onOpenChange: () => void
-  onSave: (control: ControlData) => void
+  onSave: (control: ControlWithStatus) => void
 }) {
   const [applicable, setApplicable] = useState(control?.applicable ?? true)
   const [justification, setJustification] = useState(control?.justification || '')
@@ -270,14 +536,18 @@ function ControlEditDialog({
     // Only reset if control changed
   }
 
-  const handleSave = () => {
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
     if (!control) return
-    onSave({
+    setSaving(true)
+    await onSave({
       ...control,
       applicable,
       justification: justification || null,
       implementation_status: applicable ? status : 'not_applicable'
     })
+    setSaving(false)
   }
 
   if (!control) return null
@@ -356,8 +626,8 @@ function ControlEditDialog({
           <Button variant="outline" onClick={onOpenChange}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>
-            Save Changes
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

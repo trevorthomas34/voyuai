@@ -9,7 +9,10 @@ export type EvidenceUpdate = UpdateTables<'evidence'>
 export interface EvidenceWithDetails extends Evidence {
   control_name?: string
   uploaded_by_name?: string
-  verified?: boolean // Not in DB, computed from verification status
+  verified: boolean
+  verified_by?: string | null
+  verified_at?: string | null
+  verified_by_name?: string | null
 }
 
 export async function getEvidence(): Promise<EvidenceWithDetails[]> {
@@ -18,7 +21,8 @@ export async function getEvidence(): Promise<EvidenceWithDetails[]> {
     .from('evidence')
     .select(`
       *,
-      controls (name)
+      controls (name),
+      verifier:verified_by (full_name)
     `)
     .order('created_at', { ascending: false })
 
@@ -29,8 +33,9 @@ export async function getEvidence(): Promise<EvidenceWithDetails[]> {
     ...e,
     control_name: e.controls?.name,
     controls: undefined,
-    // For now, consider all evidence as unverified - verification could be a separate table
-    verified: false
+    verified: !!e.verified_at,
+    verified_by_name: e.verifier?.full_name ?? null,
+    verifier: undefined,
   }))
 }
 
@@ -40,7 +45,8 @@ export async function getEvidenceByControl(controlId: string): Promise<EvidenceW
     .from('evidence')
     .select(`
       *,
-      controls (name)
+      controls (name),
+      verifier:verified_by (full_name)
     `)
     .eq('control_id', controlId)
     .order('created_at', { ascending: false })
@@ -52,7 +58,9 @@ export async function getEvidenceByControl(controlId: string): Promise<EvidenceW
     ...e,
     control_name: e.controls?.name,
     controls: undefined,
-    verified: false
+    verified: !!e.verified_at,
+    verified_by_name: e.verifier?.full_name ?? null,
+    verifier: undefined,
   }))
 }
 
@@ -115,6 +123,39 @@ export async function deleteEvidence(id: string): Promise<void> {
     .eq('id', id)
 
   if (error) throw error
+}
+
+export async function verifyEvidence(id: string): Promise<Evidence> {
+  const supabase = createClient()
+
+  const [{ data: userId, error: userError }, { data: orgId, error: orgError }] = await Promise.all([
+    supabase.rpc('get_current_user_id'),
+    supabase.rpc('get_user_organization_id')
+  ])
+  if (userError || !userId) throw userError ?? new Error('Could not resolve user')
+  if (orgError || !orgId) throw orgError ?? new Error('Could not resolve organization')
+
+  const now = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('evidence')
+    .update({ verified_by: userId as string, verified_at: now } as never)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+
+  // Log to approval_logs
+  await supabase.from('approval_logs').insert({
+    organization_id: orgId as string,
+    object_type: 'evidence',
+    object_id: id,
+    action: 'verified',
+    approved_by: userId as string,
+  } as never)
+
+  return data as Evidence
 }
 
 // Get unique control IDs that have evidence

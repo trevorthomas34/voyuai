@@ -69,19 +69,8 @@ export async function updateOrganizationControl(
 ): Promise<OrganizationControl> {
   const supabase = createClient()
 
-  // Get the current user's organization_id
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('organization_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (userError || !userData) throw userError ?? new Error('User not found')
-
-  const organizationId = (userData as { organization_id: string }).organization_id
+  const { data: organizationId, error: orgError } = await supabase.rpc('get_user_organization_id')
+  if (orgError || !organizationId) throw orgError ?? new Error('Could not resolve organization')
 
   const upsertData: OrganizationControlInsert = {
     organization_id: organizationId,

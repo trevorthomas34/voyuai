@@ -43,11 +43,13 @@ import {
   stageConfig,
   type EvidenceType
 } from '@/lib/mock-data'
-import { getEvidence, createEvidence, type EvidenceWithDetails } from '@/lib/data/evidence'
+import { getEvidence, createEvidence, verifyEvidence, type EvidenceWithDetails } from '@/lib/data/evidence'
 import { getOrganizationControls, type ControlWithStatus } from '@/lib/data/controls'
+import { getCurrentUserRole } from '@/lib/data/users'
 
 export default function EvidencePage() {
   const [evidence, setEvidence] = useState<EvidenceWithDetails[]>([])
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [controls, setControls] = useState<ControlWithStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -58,10 +60,11 @@ export default function EvidencePage() {
 
   // Fetch data on mount
   useEffect(() => {
-    Promise.all([getEvidence(), getOrganizationControls()])
-      .then(([evidenceData, controlsData]) => {
+    Promise.all([getEvidence(), getOrganizationControls(), getCurrentUserRole()])
+      .then(([evidenceData, controlsData, role]) => {
         setEvidence(evidenceData)
         setControls(controlsData)
+        setUserRole(role)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -137,12 +140,20 @@ export default function EvidencePage() {
     }
   }
 
-  const handleVerify = (evidenceId: string) => {
-    // In a real app, this would update a verification status in the database
-    setEvidence(prev => prev.map(e =>
-      e.id === evidenceId ? { ...e, verified: true } : e
-    ))
-    setSelectedEvidence(null)
+  const canApprove = userRole === 'admin' || userRole === 'voyu_consultant'
+
+  const handleVerify = async (evidenceId: string) => {
+    try {
+      const updated = await verifyEvidence(evidenceId)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const u = updated as any
+      setEvidence(prev => prev.map(e =>
+        e.id === evidenceId ? { ...e, verified: true, verified_by: u.verified_by, verified_at: u.verified_at } : e
+      ))
+      setSelectedEvidence(null)
+    } catch (error) {
+      console.error('Failed to verify evidence:', error)
+    }
   }
 
   if (loading) {
@@ -417,9 +428,17 @@ export default function EvidencePage() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Verification Status</Label>
-                  <div className="mt-1">
+                  <div className="mt-1 space-y-1">
                     {selectedEvidence.verified ? (
-                      <Badge className="bg-green-100 text-green-800">Verified</Badge>
+                      <>
+                        <Badge className="bg-green-100 text-green-800">Verified</Badge>
+                        {selectedEvidence.verified_by_name && (
+                          <p className="text-xs text-muted-foreground">
+                            by {selectedEvidence.verified_by_name}
+                            {selectedEvidence.verified_at && ` on ${new Date(selectedEvidence.verified_at).toLocaleDateString()}`}
+                          </p>
+                        )}
+                      </>
                     ) : (
                       <Badge className="bg-yellow-100 text-yellow-800">Pending Verification</Badge>
                     )}
@@ -443,10 +462,13 @@ export default function EvidencePage() {
                 <Button variant="outline" onClick={() => setSelectedEvidence(null)}>
                   Close
                 </Button>
-                {!selectedEvidence.verified && (
+                {!selectedEvidence.verified && canApprove && (
                   <Button onClick={() => handleVerify(selectedEvidence.id)}>
                     Mark as Verified
                   </Button>
+                )}
+                {!selectedEvidence.verified && !canApprove && (
+                  <p className="text-xs text-muted-foreground">Only admins can verify evidence</p>
                 )}
               </DialogFooter>
             </>
