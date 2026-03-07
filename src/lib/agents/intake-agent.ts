@@ -180,7 +180,8 @@ export function validateIntakeResponses(responses: Partial<IntakeResponses>): {
   valid: boolean
   missing: string[]
 } {
-  const requiredFields: (keyof IntakeResponses)[] = [
+  // Fields that must be non-empty (arrays must have at least one value)
+  const requiredNonEmpty: (keyof IntakeResponses)[] = [
     'org_name',
     'industry',
     'headcount',
@@ -192,18 +193,27 @@ export function validateIntakeResponses(responses: Partial<IntakeResponses>): {
     'development_practices',
     'remote_work',
     'compliance_drivers',
-    'existing_certifications',
     'certification_timeline',
     'customer_types',
     'customer_security_requirements'
   ]
+  // Fields that must be present but can be empty arrays (e.g. no existing certifications)
+  const requiredPresent: (keyof IntakeResponses)[] = [
+    'existing_certifications',
+  ]
 
   const missing: string[] = []
-  for (const field of requiredFields) {
+  for (const field of requiredNonEmpty) {
     const value = responses[field]
     if (value === undefined || value === null || value === '') {
       missing.push(field)
     } else if (Array.isArray(value) && value.length === 0) {
+      missing.push(field)
+    }
+  }
+  for (const field of requiredPresent) {
+    const value = responses[field]
+    if (value === undefined || value === null) {
       missing.push(field)
     }
   }
