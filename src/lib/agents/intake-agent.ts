@@ -3,14 +3,12 @@
 // Inputs: Industry, headcount, geography, data types, cloud stack, customer types
 // Outputs: Draft ISMS scope, interested parties, regulatory exposure, initial Annex A assumptions
 
-import Anthropic from '@anthropic-ai/sdk'
-
-function getAnthropicClient() {
+function getAnthropicApiKey() {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY environment variable is not set')
   }
-  return new Anthropic({ apiKey })
+  return apiKey
 }
 
 export interface IntakeResponses {
@@ -141,22 +139,33 @@ export async function generateDraftScope(responses: IntakeResponses): Promise<Dr
   const prompt = SCOPE_GENERATION_PROMPT.replace('{responses}', formattedResponses)
 
   try {
-    const anthropic = getAnthropicClient()
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      system: INTAKE_SYSTEM_PROMPT,
-      messages: [
-        { role: 'user', content: prompt }
-      ]
+    const apiKey = getAnthropicApiKey()
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        system: INTAKE_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: prompt }],
+      }),
     })
 
-    const content = message.content[0]
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(`Anthropic API error ${response.status}: ${errText}`)
+    }
+
+    const data = await response.json() as { content: { type: string; text: string }[] }
+    const content = data.content[0]
     if (!content || content.type !== 'text') {
       throw new Error('No text content in response')
     }
 
-    // Extract JSON from the response (strip any markdown code fences if present)
     const jsonText = content.text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
     const result = JSON.parse(jsonText) as DraftISMSScope
     return result
