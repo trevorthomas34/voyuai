@@ -53,8 +53,8 @@ export default function ReportPage() {
         }
 
         const orgData = orgResult.data as { name: string } | null
-        const orgName = orgData?.name
-          ?? (intakeResponses.org_name as string)
+        const orgName = (intakeResponses.org_name as string)
+          ?? orgData?.name
           ?? 'Organization'
 
         setData({ orgName, scope, controls, soaRecords, risks, assets, evidence, intake: intakeResponses })
