@@ -85,94 +85,75 @@ When analyzing responses, consider:
 
 Output JSON only, no markdown formatting.`
 
-const SCOPE_GENERATION_PROMPT = `Based on the intake questionnaire responses, generate a comprehensive draft ISMS scope.
+const SCOPE_GENERATION_PROMPT = `Based on the intake responses, generate a concise draft ISMS scope as JSON.
 
 Intake Responses:
 {responses}
 
-Generate a JSON response with this exact structure:
-{
-  "scopeStatement": "A 2-3 sentence description of what the ISMS covers",
-  "boundaries": {
-    "physical": ["List of physical locations/assets in scope"],
-    "logical": ["List of systems, applications, networks in scope"],
-    "organizational": ["List of departments, teams, processes in scope"]
-  },
-  "exclusions": ["Specific items explicitly excluded with justification"],
-  "interestedParties": [
-    {
-      "name": "Party name",
-      "type": "internal or external",
-      "expectations": ["What they expect"],
-      "requirements": ["Specific requirements they impose"]
-    }
-  ],
-  "regulatoryRequirements": [
-    {
-      "regulation": "Regulation name",
-      "description": "Brief description",
-      "applicable": true/false,
-      "reasoning": "Why applicable or not"
-    }
-  ],
-  "annexAAssumptions": [
-    {
-      "controlId": "A.X.X",
-      "controlName": "Control name",
-      "applicability": "likely_applicable|likely_not_applicable|needs_review",
-      "reasoning": "Brief reasoning"
-    }
-  ],
-  "riskAreas": ["Key risk areas to focus on based on the profile"],
-  "recommendations": ["Specific recommendations for this organization"]
-}
+Return ONLY this JSON (no markdown, keep values brief):
+{"scopeStatement":"2 sentences max","boundaries":{"physical":["max 2 items"],"logical":["max 3 items"],"organizational":["max 3 items"]},"exclusions":["max 2 items"],"interestedParties":[{"name":"","type":"internal","expectations":["brief"],"requirements":["brief"]}],"regulatoryRequirements":[{"regulation":"","description":"brief","applicable":true,"reasoning":"brief"}],"annexAAssumptions":[],"riskAreas":["max 4 items"],"recommendations":["max 4 items"]}
 
-Focus on:
-1. Making the scope clear and auditable
-2. Identifying ALL relevant interested parties
-3. Flagging ALL potentially applicable regulations
-4. Only include Annex A assumptions for controls that clearly apply or don't apply based on the context
-5. Being conservative - when in doubt, mark as "needs_review"`
+Limits: max 4 interestedParties, max 4 regulatoryRequirements, empty annexAAssumptions array.`
 
-export async function generateDraftScope(responses: IntakeResponses): Promise<DraftISMSScope> {
+export function buildScopeStream(responses: IntakeResponses): ReadableStream<Uint8Array> {
   const formattedResponses = JSON.stringify(responses, null, 2)
   const prompt = SCOPE_GENERATION_PROMPT.replace('{responses}', formattedResponses)
+  const apiKey = getAnthropicApiKey()
+  const encoder = new TextEncoder()
 
-  try {
-    const apiKey = getAnthropicApiKey()
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4096,
-        system: INTAKE_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 2000,
+            stream: true,
+            system: INTAKE_SYSTEM_PROMPT,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        })
 
-    if (!response.ok) {
-      const errText = await response.text()
-      throw new Error(`Anthropic API error ${response.status}: ${errText}`)
+        if (!response.ok) {
+          const err = await response.text()
+          controller.error(new Error(`Anthropic API error ${response.status}: ${err}`))
+          return
+        }
+
+        const reader = response.body!.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const data = line.slice(6).trim()
+            if (data === '[DONE]') continue
+            try {
+              const event = JSON.parse(data)
+              if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                controller.enqueue(encoder.encode(event.delta.text))
+              }
+            } catch { /* skip malformed SSE */ }
+          }
+        }
+        controller.close()
+      } catch (err) {
+        controller.error(err)
+      }
     }
-
-    const data = await response.json() as { content: { type: string; text: string }[] }
-    const content = data.content[0]
-    if (!content || content.type !== 'text') {
-      throw new Error('No text content in response')
-    }
-
-    const jsonText = content.text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-    const result = JSON.parse(jsonText) as DraftISMSScope
-    return result
-  } catch (error) {
-    console.error('Error generating draft scope:', error)
-    throw error
-  }
+  })
 }
 
 // Validate that all required fields are present

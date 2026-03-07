@@ -69,13 +69,17 @@ export default function IntakePage() {
         body: JSON.stringify({ responses: formResponses })
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate scope')
+        const errData = await response.json().catch(() => ({})) as { error?: string }
+        throw new Error(errData.error || 'Failed to generate scope')
       }
 
-      setDraftScope(data.draftScope)
+      // Response is streamed plain text containing the JSON scope
+      const rawText = await response.text()
+      const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+      const draftScope = JSON.parse(jsonText)
+
+      setDraftScope(draftScope)
       setStep('review')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
