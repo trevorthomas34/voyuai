@@ -38,9 +38,18 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refresh session if expired
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // Session check failed — treat as unauthenticated
+  }
+
+  // API routes should never be redirected to login
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return supabaseResponse
+  }
 
   // Protect routes that require authentication
   const protectedPaths = ['/dashboard', '/risks', '/controls', '/soa', '/evidence', '/audit', '/intake', '/report']
