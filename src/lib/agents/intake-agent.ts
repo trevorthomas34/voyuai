@@ -171,7 +171,7 @@ export async function generateDraftScope(responses: IntakeResponses): Promise<Dr
     return result
   } catch (error) {
     console.error('Error generating draft scope:', error)
-    throw new Error('Failed to generate draft ISMS scope')
+    throw error
   }
 }
 
