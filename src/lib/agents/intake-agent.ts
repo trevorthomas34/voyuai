@@ -3,12 +3,13 @@
 // Inputs: Industry, headcount, geography, data types, cloud stack, customer types
 // Outputs: Draft ISMS scope, interested parties, regulatory exposure, initial Annex A assumptions
 
-async function getAnthropicClient() {
+import Anthropic from '@anthropic-ai/sdk'
+
+function getAnthropicClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY environment variable is not set')
   }
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
   return new Anthropic({ apiKey })
 }
 
@@ -140,7 +141,7 @@ export async function generateDraftScope(responses: IntakeResponses): Promise<Dr
   const prompt = SCOPE_GENERATION_PROMPT.replace('{responses}', formattedResponses)
 
   try {
-    const anthropic = await getAnthropicClient()
+    const anthropic = getAnthropicClient()
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
