@@ -28,47 +28,52 @@ export default function DashboardPage() {
   // Fetch all stats on mount
   useEffect(() => {
     async function fetchStats() {
-      try {
-        const supabase = createClient()
-        const [assets, risks, evidence, controlStats, controlsWithEvidence, scopeResult] = await Promise.all([
-          getAssets(),
-          getRisks(),
-          getEvidence(),
-          getControlStats(),
-          getControlsWithEvidence(),
-          supabase.from('isms_scopes').select('*').limit(1).single()
-        ])
+      const supabase = createClient()
+      const [assetsRes, risksRes, evidenceRes, controlStatsRes, controlsWithEvidenceRes, scopeResult] = await Promise.allSettled([
+        getAssets(),
+        getRisks(),
+        getEvidence(),
+        getControlStats(),
+        getControlsWithEvidence(),
+        supabase.from('isms_scopes').select('*').limit(1).single()
+      ])
 
-        const scopeData = scopeResult.data as { id: string; approved_at: string | null } | null
+      if (assetsRes.status === 'rejected') console.error('Failed to fetch assets:', assetsRes.reason)
+      if (risksRes.status === 'rejected') console.error('Failed to fetch risks:', risksRes.reason)
+      if (evidenceRes.status === 'rejected') console.error('Failed to fetch evidence:', evidenceRes.reason)
+      if (controlStatsRes.status === 'rejected') console.error('Failed to fetch controls:', controlStatsRes.reason)
 
-        setStats({
-          assets: {
-            total: assets.length,
-            inScope: assets.filter(a => a.in_scope).length,
-            critical: assets.filter(a => a.criticality === 'critical').length
-          },
-          risks: {
-            total: risks.length,
-            high: risks.filter(r => r.risk_level === 'high').length,
-            approved: risks.filter(r => r.status === 'approved').length,
-            pending: risks.filter(r => r.status === 'draft').length
-          },
-          controls: controlStats,
-          evidence: {
-            total: evidence.length,
-            verified: evidence.filter(e => e.verified).length,
-            controlsCovered: controlsWithEvidence.length
-          },
-          scope: {
-            exists: !!scopeData,
-            approved: !!scopeData?.approved_at,
-          }
-        })
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error)
-      } finally {
-        setLoading(false)
-      }
+      const assets = assetsRes.status === 'fulfilled' ? assetsRes.value : []
+      const risks = risksRes.status === 'fulfilled' ? risksRes.value : []
+      const evidence = evidenceRes.status === 'fulfilled' ? evidenceRes.value : []
+      const controlStats = controlStatsRes.status === 'fulfilled' ? controlStatsRes.value : { total: 0, applicable: 0, notApplicable: 0, implemented: 0, partial: 0, gap: 0 }
+      const controlsWithEvidence = controlsWithEvidenceRes.status === 'fulfilled' ? controlsWithEvidenceRes.value : []
+      const scopeData = scopeResult.status === 'fulfilled' ? scopeResult.value.data as { id: string; approved_at: string | null } | null : null
+
+      setStats({
+        assets: {
+          total: assets.length,
+          inScope: assets.filter(a => a.in_scope).length,
+          critical: assets.filter(a => a.criticality === 'critical').length
+        },
+        risks: {
+          total: risks.length,
+          high: risks.filter(r => r.risk_level === 'high').length,
+          approved: risks.filter(r => r.status === 'approved').length,
+          pending: risks.filter(r => r.status === 'draft').length
+        },
+        controls: controlStats,
+        evidence: {
+          total: evidence.length,
+          verified: evidence.filter(e => e.verified).length,
+          controlsCovered: controlsWithEvidence.length
+        },
+        scope: {
+          exists: !!scopeData,
+          approved: !!scopeData?.approved_at,
+        }
+      })
+      setLoading(false)
     }
 
     fetchStats()

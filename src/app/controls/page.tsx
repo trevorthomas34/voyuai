@@ -53,12 +53,13 @@ export default function ControlsPage() {
   const [allEvidence, setAllEvidence] = useState<EvidenceWithDetails[]>([])
 
   useEffect(() => {
-    Promise.all([getOrganizationControls(), getEvidence()])
-      .then(([controlsData, evidenceData]) => {
-        setControls(controlsData)
-        setAllEvidence(evidenceData)
+    Promise.allSettled([getOrganizationControls(), getEvidence()])
+      .then(([controlsRes, evidenceRes]) => {
+        if (controlsRes.status === 'fulfilled') setControls(controlsRes.value)
+        else console.error('Failed to load controls:', controlsRes.reason)
+        if (evidenceRes.status === 'fulfilled') setAllEvidence(evidenceRes.value)
+        else console.error('Failed to load evidence:', evidenceRes.reason)
       })
-      .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 

@@ -3,15 +3,13 @@
 // Inputs: Industry, headcount, geography, data types, cloud stack, customer types
 // Outputs: Draft ISMS scope, interested parties, regulatory exposure, initial Annex A assumptions
 
-// Lazy-load OpenAI client to avoid build-time initialization errors
-// Using dynamic import to prevent module from loading during Next.js build
-async function getOpenAIClient() {
-  const apiKey = process.env.OPENAI_API_KEY
+async function getAnthropicClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
-    throw new Error('OPENAI_API_KEY environment variable is not set')
+    throw new Error('ANTHROPIC_API_KEY environment variable is not set')
   }
-  const { default: OpenAI } = await import('openai')
-  return new OpenAI({ apiKey })
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  return new Anthropic({ apiKey })
 }
 
 export interface IntakeResponses {
@@ -142,23 +140,24 @@ export async function generateDraftScope(responses: IntakeResponses): Promise<Dr
   const prompt = SCOPE_GENERATION_PROMPT.replace('{responses}', formattedResponses)
 
   try {
-    const openai = await getOpenAIClient()
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const anthropic = await getAnthropicClient()
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      system: INTAKE_SYSTEM_PROMPT,
       messages: [
-        { role: 'system', content: INTAKE_SYSTEM_PROMPT },
         { role: 'user', content: prompt }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' }
+      ]
     })
 
-    const content = completion.choices[0].message.content
-    if (!content) {
-      throw new Error('No content in response')
+    const content = message.content[0]
+    if (!content || content.type !== 'text') {
+      throw new Error('No text content in response')
     }
 
-    const result = JSON.parse(content) as DraftISMSScope
+    // Extract JSON from the response (strip any markdown code fences if present)
+    const jsonText = content.text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+    const result = JSON.parse(jsonText) as DraftISMSScope
     return result
   } catch (error) {
     console.error('Error generating draft scope:', error)

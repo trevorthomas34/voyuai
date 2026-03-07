@@ -79,8 +79,7 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
     setLikelihood(l)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = () => {
     const selectedAsset = assets.find(a => a.id === assetId)
     onSave({
       id: risk?.id,
@@ -101,8 +100,10 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <form onSubmit={handleSubmit}>
+      <DialogContent
+        className="sm:max-w-[600px]"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
           <DialogHeader>
             <DialogTitle>{isEdit ? 'Edit Risk' : 'Add New Risk'}</DialogTitle>
             <DialogDescription>
@@ -112,7 +113,7 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 max-h-[65vh] overflow-y-auto pr-1">
             {/* Asset Selection */}
             <div className="space-y-2">
               <Label htmlFor="asset">Related Asset</Label>
@@ -122,7 +123,7 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No specific asset</SelectItem>
-                  {assets.filter(a => a.in_scope).map(asset => (
+                  {assets.map(asset => (
                     <SelectItem key={asset.id} value={asset.id}>
                       {asset.name}
                     </SelectItem>
@@ -241,9 +242,8 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">{isEdit ? 'Save Changes' : 'Add Risk'}</Button>
+            <Button type="button" onClick={handleSubmit}>{isEdit ? 'Save Changes' : 'Add Risk'}</Button>
           </DialogFooter>
-        </form>
       </DialogContent>
     </Dialog>
   )

@@ -39,14 +39,16 @@ export default function RisksPage() {
 
   // Fetch data on mount
   useEffect(() => {
-    Promise.all([getRisks(), getAssets(), getOrganizationUsers(), getCurrentUserRole()])
-      .then(([risksData, assetsData, usersData, role]) => {
-        setRisks(risksData)
-        setAssets(assetsData)
-        setUsers(usersData)
-        setUserRole(role)
+    Promise.allSettled([getRisks(), getAssets(), getOrganizationUsers(), getCurrentUserRole()])
+      .then(([risksRes, assetsRes, usersRes, roleRes]) => {
+        if (risksRes.status === 'fulfilled') setRisks(risksRes.value)
+        else console.error('Failed to load risks:', risksRes.reason)
+        if (assetsRes.status === 'fulfilled') setAssets(assetsRes.value)
+        else console.error('Failed to load assets:', assetsRes.reason)
+        if (usersRes.status === 'fulfilled') setUsers(usersRes.value)
+        else console.error('Failed to load users:', usersRes.reason)
+        if (roleRes.status === 'fulfilled') setUserRole(roleRes.value)
       })
-      .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 

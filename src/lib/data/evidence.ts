@@ -17,7 +17,12 @@ export interface EvidenceWithDetails extends Evidence {
 
 export async function getEvidence(): Promise<EvidenceWithDetails[]> {
   const supabase = createClient()
-  const { data, error } = await supabase
+
+  // Try with verified_by join first; fall back if column doesn't exist yet
+  let data: unknown[] | null = null
+  let hasVerifiedBy = true
+
+  const { data: fullData, error: fullError } = await supabase
     .from('evidence')
     .select(`
       *,
@@ -26,22 +31,41 @@ export async function getEvidence(): Promise<EvidenceWithDetails[]> {
     `)
     .order('created_at', { ascending: false })
 
-  if (error) throw error
+  if (fullError) {
+    // If error mentions verified_by, fall back to query without it
+    if (fullError.message?.includes('verified_by') || fullError.code === '42703') {
+      hasVerifiedBy = false
+      const { data: simpleData, error: simpleError } = await supabase
+        .from('evidence')
+        .select(`*, controls (name)`)
+        .order('created_at', { ascending: false })
+      if (simpleError) throw simpleError
+      data = simpleData ?? []
+    } else {
+      throw fullError
+    }
+  } else {
+    data = fullData ?? []
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).map((e: any) => ({
+  return (data as any[]).map((e: any) => ({
     ...e,
     control_name: e.controls?.name,
     controls: undefined,
-    verified: !!e.verified_at,
-    verified_by_name: e.verifier?.full_name ?? null,
+    verified: hasVerifiedBy ? !!e.verified_at : false,
+    verified_by_name: hasVerifiedBy ? (e.verifier?.full_name ?? null) : null,
     verifier: undefined,
   }))
 }
 
 export async function getEvidenceByControl(controlId: string): Promise<EvidenceWithDetails[]> {
   const supabase = createClient()
-  const { data, error } = await supabase
+
+  let data: unknown[] | null = null
+  let hasVerifiedBy = true
+
+  const { data: fullData, error: fullError } = await supabase
     .from('evidence')
     .select(`
       *,
@@ -51,15 +75,30 @@ export async function getEvidenceByControl(controlId: string): Promise<EvidenceW
     .eq('control_id', controlId)
     .order('created_at', { ascending: false })
 
-  if (error) throw error
+  if (fullError) {
+    if (fullError.message?.includes('verified_by') || fullError.code === '42703') {
+      hasVerifiedBy = false
+      const { data: simpleData, error: simpleError } = await supabase
+        .from('evidence')
+        .select(`*, controls (name)`)
+        .eq('control_id', controlId)
+        .order('created_at', { ascending: false })
+      if (simpleError) throw simpleError
+      data = simpleData ?? []
+    } else {
+      throw fullError
+    }
+  } else {
+    data = fullData ?? []
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).map((e: any) => ({
+  return (data as any[]).map((e: any) => ({
     ...e,
     control_name: e.controls?.name,
     controls: undefined,
-    verified: !!e.verified_at,
-    verified_by_name: e.verifier?.full_name ?? null,
+    verified: hasVerifiedBy ? !!e.verified_at : false,
+    verified_by_name: hasVerifiedBy ? (e.verifier?.full_name ?? null) : null,
     verifier: undefined,
   }))
 }

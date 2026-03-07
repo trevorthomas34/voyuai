@@ -5,10 +5,16 @@ export type OrgUser = Pick<Tables<'users'>, 'id' | 'email' | 'full_name' | 'role
 
 export async function getOrganizationUsers(): Promise<OrgUser[]> {
   const supabase = createClient()
+
+  // Explicitly get org ID via SECURITY DEFINER RPC to avoid RLS chicken-and-egg
+  const { data: orgId, error: orgError } = await supabase.rpc('get_user_organization_id')
+  if (orgError || !orgId) return []
+
   const { data, error } = await supabase
     .from('users')
     .select('id, email, full_name, role')
-    .order('full_name', { ascending: true })
+    .eq('organization_id', orgId)
+    .order('email', { ascending: true })
 
   if (error) throw error
   return (data ?? []) as OrgUser[]
