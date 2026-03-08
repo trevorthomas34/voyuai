@@ -84,7 +84,7 @@ export default function SoAPage() {
           return {
             ...control,
             applicable: orgControl?.applicable ?? control.applicable,
-            justification: orgControl?.justification ?? control.justification,
+            justification: orgControl !== undefined ? orgControl.justification : control.justification,
             implementation_status: orgControl?.implementation_status ?? control.implementation_status,
             linkedRisks: soaRecord?.linked_risks ?? [],
             linkedEvidence: soaRecord?.linked_evidence ?? [],
