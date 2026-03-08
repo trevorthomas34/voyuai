@@ -91,9 +91,26 @@ Intake Responses:
 {responses}
 
 Return ONLY this JSON (no markdown, keep values brief):
-{"scopeStatement":"2 sentences max","boundaries":{"physical":["max 2 items"],"logical":["max 3 items"],"organizational":["max 3 items"]},"exclusions":["max 2 items"],"interestedParties":[{"name":"","type":"internal","expectations":["brief"],"requirements":["brief"]}],"regulatoryRequirements":[{"regulation":"","description":"brief","applicable":true,"reasoning":"brief"}],"annexAAssumptions":[],"riskAreas":["max 4 items"],"recommendations":["max 4 items"]}
+{"scopeStatement":"2 sentences max","boundaries":{"physical":["max 2 items"],"logical":["max 3 items"],"organizational":["max 3 items"]},"exclusions":["max 2 items"],"interestedParties":[{"name":"","type":"internal","expectations":["brief"],"requirements":["brief"]}],"regulatoryRequirements":[{"regulation":"","description":"brief","applicable":true,"reasoning":"brief"}],"annexAAssumptions":[{"controlId":"","controlName":"","applicability":"likely_applicable","reasoning":"brief"}],"riskAreas":["max 4 items"],"recommendations":["max 4 items"]}
 
-Limits: max 4 interestedParties, max 4 regulatoryRequirements, empty annexAAssumptions array.`
+Limits: max 4 interestedParties, max 4 regulatoryRequirements.
+
+For annexAAssumptions, assess ONLY the controls listed below using the intake context. Keep reasoning to one sentence.
+
+PHYSICAL PREMISES CONTROLS (A.7.1, A.7.2, A.7.3, A.7.4, A.7.6):
+- remote_work = "fully_remote" → likely_not_applicable (no physical office)
+- remote_work = "hybrid" or "office_based" → likely_applicable (organization has office locations)
+
+DATA CENTER / INFRASTRUCTURE CONTROLS (A.7.5, A.7.11, A.7.12):
+- cloud_providers does NOT include "on_premise" → likely_not_applicable (cloud-hosted, no physical data centers)
+- cloud_providers includes "on_premise" → likely_applicable
+
+SECURE DEVELOPMENT CONTROLS (A.8.25, A.8.26, A.8.27, A.8.28, A.8.29, A.8.30, A.8.31, A.8.32, A.8.33, A.8.34):
+- development_practices = "no_development" → likely_not_applicable (no software development)
+- otherwise → likely_applicable
+
+Control names for reference:
+A.7.1=Physical security perimeters, A.7.2=Physical entry, A.7.3=Securing offices rooms and facilities, A.7.4=Physical security monitoring, A.7.5=Protecting against physical and environmental threats, A.7.6=Working in secure areas, A.7.11=Supporting utilities, A.7.12=Cabling security, A.8.25=Secure development life cycle, A.8.26=Application security requirements, A.8.27=Secure system architecture and engineering principles, A.8.28=Secure coding, A.8.29=Security testing in development and acceptance, A.8.30=Outsourced development, A.8.31=Separation of development test and production environments, A.8.32=Change management, A.8.33=Test information, A.8.34=Protection of information systems during audit testing`
 
 export function buildScopeStream(responses: IntakeResponses): ReadableStream<Uint8Array> {
   const formattedResponses = JSON.stringify(responses, null, 2)
@@ -113,7 +130,7 @@ export function buildScopeStream(responses: IntakeResponses): ReadableStream<Uin
           },
           body: JSON.stringify({
             model: 'claude-haiku-4-5-20251001',
-            max_tokens: 2000,
+            max_tokens: 3500,
             stream: true,
             system: INTAKE_SYSTEM_PROMPT,
             messages: [{ role: 'user', content: prompt }],
