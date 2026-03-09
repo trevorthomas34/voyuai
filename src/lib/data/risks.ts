@@ -117,48 +117,17 @@ export async function deleteRisk(id: string): Promise<void> {
 }
 
 export async function approveRisk(id: string, comment?: string): Promise<Risk> {
-  const supabase = createClient()
+  const response = await fetch('/api/risks/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ riskId: id, comment }),
+  })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(body.error ?? 'Failed to approve risk')
+  }
 
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('id, organization_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (userError || !userData) throw userError ?? new Error('User not found')
-
-  const userInfo = userData as { id: string; organization_id: string }
-  const now = new Date().toISOString()
-
-  // Update the risk
-  const { data, error } = await supabase
-    .from('risks')
-    .update({
-      status: 'approved',
-      approved_by: userInfo.id,
-      approved_at: now,
-      updated_at: now
-    } as never)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) throw error
-
-  // Create approval log entry
-  await supabase
-    .from('approval_logs')
-    .insert({
-      organization_id: userInfo.organization_id,
-      object_type: 'risk',
-      object_id: id,
-      action: 'approved',
-      approved_by: userInfo.id,
-      comment: comment ?? null
-    } as never)
-
-  return data as Risk
+  const { risk } = await response.json()
+  return risk as Risk
 }

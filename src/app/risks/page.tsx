@@ -143,6 +143,7 @@ export default function RisksPage() {
       setApprovingRisk(null)
     } catch (error) {
       console.error('Failed to approve risk:', error)
+      alert(`Failed to approve risk: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
