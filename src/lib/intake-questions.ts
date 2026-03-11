@@ -9,6 +9,7 @@ export interface IntakeQuestion {
   options?: { value: string; label: string }[]
   placeholder?: string
   required: boolean
+  searchable?: boolean
   category: 'organization' | 'data' | 'technology' | 'compliance' | 'customers'
 }
 
@@ -28,6 +29,7 @@ export const intakeQuestions: IntakeQuestion[] = [
     question: 'What industry does your organization operate in?',
     description: 'Primary business sector',
     type: 'select',
+    searchable: true,
     options: [
       { value: 'technology', label: 'Technology / Software' },
       { value: 'fintech', label: 'Financial Technology (FinTech)' },

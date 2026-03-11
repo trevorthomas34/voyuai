@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
@@ -114,6 +115,16 @@ export function IntakeForm({
         )
 
       case 'select':
+        if (question.searchable) {
+          return (
+            <SearchableSelect
+              options={question.options || []}
+              value={(value as string) || ''}
+              onValueChange={v => updateResponse(question.id, v)}
+              placeholder="Select an option"
+            />
+          )
+        }
         return (
           <Select
             value={(value as string) || ''}
