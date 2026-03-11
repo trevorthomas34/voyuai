@@ -60,14 +60,15 @@ export default function EvidencePage() {
 
   // Fetch data on mount
   useEffect(() => {
-    Promise.all([getEvidence(), getOrganizationControls(), getCurrentUserRole()])
-      .then(([evidenceData, controlsData, role]) => {
-        setEvidence(evidenceData)
-        setControls(controlsData)
-        setUserRole(role)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    Promise.all([
+      getEvidence().catch((e): EvidenceWithDetails[] => { console.error('Failed to load evidence:', e); return [] }),
+      getOrganizationControls().catch((e): ControlWithStatus[] => { console.error('Failed to load controls:', e); return [] }),
+      getCurrentUserRole().catch((e): string | null => { console.error('Failed to load user role:', e); return null }),
+    ]).then(([evidenceData, controlsData, role]) => {
+      setEvidence(evidenceData)
+      setControls(controlsData)
+      setUserRole(role)
+    }).finally(() => setLoading(false))
   }, [])
 
   // Filter evidence
@@ -378,7 +379,7 @@ export default function EvidencePage() {
       <UploadDialog
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
-        controls={applicableControls}
+        controls={controls}
         onUpload={handleUpload}
       />
 
@@ -639,11 +640,15 @@ function UploadDialog({
                 <SelectValue placeholder="Select control" />
               </SelectTrigger>
               <SelectContent>
-                {controls.map(c => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.control_id} - {c.name}
-                  </SelectItem>
-                ))}
+                {controls.length === 0 ? (
+                  <div className="py-2 px-3 text-sm text-muted-foreground">No controls found</div>
+                ) : (
+                  controls.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.control_id} - {c.name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
