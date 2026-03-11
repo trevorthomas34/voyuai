@@ -132,6 +132,7 @@ export interface Database {
           asset_type: AssetType
           description: string | null
           owner_id: string | null
+          owner_name: string | null
           criticality: Criticality
           in_scope: boolean
           created_at: string
@@ -144,6 +145,7 @@ export interface Database {
           asset_type: AssetType
           description?: string | null
           owner_id?: string | null
+          owner_name?: string | null
           criticality?: Criticality
           in_scope?: boolean
           created_at?: string
@@ -156,6 +158,7 @@ export interface Database {
           asset_type?: AssetType
           description?: string | null
           owner_id?: string | null
+          owner_name?: string | null
           criticality?: Criticality
           in_scope?: boolean
           created_at?: string
@@ -259,6 +262,7 @@ export interface Database {
           justification: string | null
           implementation_status: ImplementationStatus
           owner_id: string | null
+          owner_name: string | null
           last_reviewed_at: string | null
           created_at: string
           updated_at: string
@@ -271,6 +275,7 @@ export interface Database {
           justification?: string | null
           implementation_status?: ImplementationStatus
           owner_id?: string | null
+          owner_name?: string | null
           last_reviewed_at?: string | null
           created_at?: string
           updated_at?: string
@@ -283,6 +288,7 @@ export interface Database {
           justification?: string | null
           implementation_status?: ImplementationStatus
           owner_id?: string | null
+          owner_name?: string | null
           last_reviewed_at?: string | null
           created_at?: string
           updated_at?: string
@@ -466,6 +472,7 @@ export interface Database {
           root_cause: string | null
           action: string
           owner_id: string | null
+          owner_name: string | null
           due_date: string | null
           status: StatusType
           completed_at: string | null
@@ -480,6 +487,7 @@ export interface Database {
           root_cause?: string | null
           action: string
           owner_id?: string | null
+          owner_name?: string | null
           due_date?: string | null
           status?: StatusType
           completed_at?: string | null
@@ -494,6 +502,7 @@ export interface Database {
           root_cause?: string | null
           action?: string
           owner_id?: string | null
+          owner_name?: string | null
           due_date?: string | null
           status?: StatusType
           completed_at?: string | null

@@ -101,7 +101,8 @@ export default function ControlsPage() {
       await updateOrganizationControl(updatedControl.id, {
         applicable: updatedControl.applicable,
         justification: updatedControl.justification ?? undefined,
-        implementation_status: updatedControl.implementation_status
+        implementation_status: updatedControl.implementation_status,
+        owner_name: updatedControl.owner_name ?? undefined
       })
       setControls(prev => prev.map(c => c.id === updatedControl.id ? updatedControl : c))
       setEditingControl(null)
@@ -328,6 +329,11 @@ function ControlCard({ control, onEdit, onAddEvidence, onViewEvidence, evidenceC
               {control.justification}
             </p>
           )}
+          {control.owner_name && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Owner: {control.owner_name}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {!control.applicable && (
@@ -531,6 +537,7 @@ function ControlEditDialog({
   const [applicable, setApplicable] = useState(control?.applicable ?? true)
   const [justification, setJustification] = useState(control?.justification || '')
   const [status, setStatus] = useState<ImplementationStatus>(control?.implementation_status || 'gap')
+  const [ownerName, setOwnerName] = useState(control?.owner_name || '')
 
   // Update local state when control changes
   if (control && (applicable !== control.applicable || status !== control.implementation_status)) {
@@ -546,7 +553,8 @@ function ControlEditDialog({
       ...control,
       applicable,
       justification: justification || null,
-      implementation_status: applicable ? status : 'not_applicable'
+      implementation_status: applicable ? status : 'not_applicable',
+      owner_name: ownerName || null
     })
     setSaving(false)
   }
@@ -621,6 +629,16 @@ function ControlEditDialog({
               />
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="ownerName">Control Owner</Label>
+            <Input
+              id="ownerName"
+              value={ownerName}
+              onChange={e => setOwnerName(e.target.value)}
+              placeholder="Enter name of control owner"
+            />
+          </div>
         </div>
 
         <DialogFooter>

@@ -35,6 +35,7 @@ export async function createAsset(asset: {
   name: string
   asset_type: 'hardware' | 'software' | 'data' | 'service' | 'people'
   description?: string | null
+  owner_name?: string | null
   criticality?: 'low' | 'medium' | 'high' | 'critical'
   in_scope?: boolean
 }): Promise<Asset> {
@@ -48,6 +49,7 @@ export async function createAsset(asset: {
     name: asset.name,
     asset_type: asset.asset_type,
     description: asset.description ?? null,
+    owner_name: asset.owner_name ?? null,
     criticality: asset.criticality ?? 'medium',
     in_scope: asset.in_scope ?? true
   }

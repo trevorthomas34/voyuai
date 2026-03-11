@@ -70,7 +70,7 @@ export function AssetTable({ assets, onEdit, onDelete }: AssetTableProps) {
                   {criticalityConfig[asset.criticality].label}
                 </Badge>
               </TableCell>
-              <TableCell>{asset.owner_id || '-'}</TableCell>
+              <TableCell>{asset.owner_name || '-'}</TableCell>
               <TableCell>
                 {asset.in_scope ? (
                   <Badge variant="default">Yes</Badge>

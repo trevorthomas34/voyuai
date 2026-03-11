@@ -52,6 +52,7 @@ export function AssetForm({ open, onOpenChange, asset, onSave }: AssetFormProps)
   const [name, setName] = useState(asset?.name || '')
   const [assetType, setAssetType] = useState<AssetType>(asset?.asset_type || 'hardware')
   const [description, setDescription] = useState(asset?.description || '')
+  const [ownerName, setOwnerName] = useState(asset?.owner_name || '')
   const [criticality, setCriticality] = useState<Criticality>(asset?.criticality || 'medium')
   const [inScope, setInScope] = useState(asset?.in_scope ?? true)
   const [saving, setSaving] = useState(false)
@@ -67,6 +68,7 @@ export function AssetForm({ open, onOpenChange, asset, onSave }: AssetFormProps)
         name,
         asset_type: assetType,
         description: description || null,
+        owner_name: ownerName || null,
         criticality,
         in_scope: inScope
       })
@@ -125,6 +127,16 @@ export function AssetForm({ open, onOpenChange, asset, onSave }: AssetFormProps)
                 onChange={e => setDescription(e.target.value)}
                 placeholder="Describe the asset and its purpose..."
                 rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ownerName">Asset Owner</Label>
+              <Input
+                id="ownerName"
+                value={ownerName}
+                onChange={e => setOwnerName(e.target.value)}
+                placeholder="Enter name of asset owner"
               />
             </div>
 

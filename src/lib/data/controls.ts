@@ -11,6 +11,7 @@ export interface ControlWithStatus extends Control {
   applicable: boolean
   justification: string | null
   implementation_status: 'implemented' | 'partial' | 'gap' | 'not_applicable'
+  owner_name: string | null
   org_control_id?: string // The organization_controls record ID
 }
 
@@ -58,6 +59,7 @@ export async function getOrganizationControls(): Promise<ControlWithStatus[]> {
       applicable: orgControl?.applicable ?? true,
       justification: orgControl?.justification ?? null,
       implementation_status: orgControl?.implementation_status ?? 'gap',
+      owner_name: orgControl?.owner_name ?? null,
       org_control_id: orgControl?.id
     }
   })
@@ -65,7 +67,7 @@ export async function getOrganizationControls(): Promise<ControlWithStatus[]> {
 
 export async function updateOrganizationControl(
   controlId: string,
-  updates: Partial<Pick<OrganizationControl, 'applicable' | 'justification' | 'implementation_status'>>
+  updates: Partial<Pick<OrganizationControl, 'applicable' | 'justification' | 'implementation_status' | 'owner_name'>>
 ): Promise<OrganizationControl> {
   const supabase = createClient()
 
@@ -77,7 +79,8 @@ export async function updateOrganizationControl(
     control_id: controlId,
     applicable: updates.applicable ?? true,
     justification: updates.justification ?? null,
-    implementation_status: updates.implementation_status ?? 'gap'
+    implementation_status: updates.implementation_status ?? 'gap',
+    owner_name: updates.owner_name ?? null
   }
 
   // Try to update existing record, or create if doesn't exist (upsert)

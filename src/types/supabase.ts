@@ -122,6 +122,7 @@ export type Database = {
           asset_type: 'hardware' | 'software' | 'data' | 'service' | 'people'
           description: string | null
           owner_id: string | null
+          owner_name: string | null
           criticality: 'low' | 'medium' | 'high' | 'critical'
           in_scope: boolean
           created_at: string
@@ -134,6 +135,7 @@ export type Database = {
           asset_type: 'hardware' | 'software' | 'data' | 'service' | 'people'
           description?: string | null
           owner_id?: string | null
+          owner_name?: string | null
           criticality?: 'low' | 'medium' | 'high' | 'critical'
           in_scope?: boolean
           created_at?: string
@@ -146,6 +148,7 @@ export type Database = {
           asset_type?: 'hardware' | 'software' | 'data' | 'service' | 'people'
           description?: string | null
           owner_id?: string | null
+          owner_name?: string | null
           criticality?: 'low' | 'medium' | 'high' | 'critical'
           in_scope?: boolean
           created_at?: string
@@ -249,6 +252,7 @@ export type Database = {
           justification: string | null
           implementation_status: 'implemented' | 'partial' | 'gap' | 'not_applicable'
           owner_id: string | null
+          owner_name: string | null
           last_reviewed_at: string | null
           created_at: string
           updated_at: string
@@ -261,6 +265,7 @@ export type Database = {
           justification?: string | null
           implementation_status?: 'implemented' | 'partial' | 'gap' | 'not_applicable'
           owner_id?: string | null
+          owner_name?: string | null
           last_reviewed_at?: string | null
           created_at?: string
           updated_at?: string
@@ -273,6 +278,7 @@ export type Database = {
           justification?: string | null
           implementation_status?: 'implemented' | 'partial' | 'gap' | 'not_applicable'
           owner_id?: string | null
+          owner_name?: string | null
           last_reviewed_at?: string | null
           created_at?: string
           updated_at?: string
@@ -456,6 +462,7 @@ export type Database = {
           root_cause: string | null
           action: string
           owner_id: string | null
+          owner_name: string | null
           due_date: string | null
           status: 'draft' | 'approved'
           completed_at: string | null
@@ -470,6 +477,7 @@ export type Database = {
           root_cause?: string | null
           action: string
           owner_id?: string | null
+          owner_name?: string | null
           due_date?: string | null
           status?: 'draft' | 'approved'
           completed_at?: string | null
@@ -484,6 +492,7 @@ export type Database = {
           root_cause?: string | null
           action?: string
           owner_id?: string | null
+          owner_name?: string | null
           due_date?: string | null
           status?: 'draft' | 'approved'
           completed_at?: string | null
