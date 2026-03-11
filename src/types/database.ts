@@ -176,6 +176,7 @@ export interface Database {
           treatment_plan: string | null
           status: StatusType
           owner_id: string | null
+          owner_name: string | null
           approved_by: string | null
           approved_at: string | null
           created_at: string
@@ -194,6 +195,7 @@ export interface Database {
           treatment_plan?: string | null
           status?: StatusType
           owner_id?: string | null
+          owner_name?: string | null
           approved_by?: string | null
           approved_at?: string | null
           created_at?: string
@@ -212,6 +214,7 @@ export interface Database {
           treatment_plan?: string | null
           status?: StatusType
           owner_id?: string | null
+          owner_name?: string | null
           approved_by?: string | null
           approved_at?: string | null
           created_at?: string

@@ -24,7 +24,6 @@ import { RiskMatrix } from './risk-matrix'
 import { calculateRiskLevel, treatmentLabels } from '@/lib/mock-data'
 import type { RiskLevel, TreatmentType } from '@/types/database'
 import type { Tables } from '@/types/supabase'
-import type { OrgUser } from '@/lib/data/users'
 
 type Risk = Tables<'risks'> & { asset_name?: string }
 type Asset = Tables<'assets'>
@@ -34,13 +33,12 @@ interface RiskFormProps {
   onOpenChange: (open: boolean) => void
   risk?: Risk | null
   assets: Asset[]
-  users: OrgUser[]
   onSave: (risk: Partial<Risk>) => void
 }
 
-export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: RiskFormProps) {
+export function RiskForm({ open, onOpenChange, risk, assets, onSave }: RiskFormProps) {
   const [assetId, setAssetId] = useState<string | null>(risk?.asset_id || null)
-  const [ownerId, setOwnerId] = useState<string | null>(risk?.owner_id || null)
+  const [ownerName, setOwnerName] = useState(risk?.owner_name || '')
   const [threat, setThreat] = useState(risk?.threat || '')
   const [vulnerability, setVulnerability] = useState(risk?.vulnerability || '')
   const [impact, setImpact] = useState<RiskLevel>(risk?.impact || 'medium')
@@ -55,7 +53,7 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
   useEffect(() => {
     if (risk) {
       setAssetId(risk.asset_id)
-      setOwnerId(risk.owner_id || null)
+      setOwnerName(risk.owner_name || '')
       setThreat(risk.threat)
       setVulnerability(risk.vulnerability || '')
       setImpact(risk.impact)
@@ -64,7 +62,7 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
       setTreatmentPlan(risk.treatment_plan || '')
     } else {
       setAssetId(null)
-      setOwnerId(null)
+      setOwnerName('')
       setThreat('')
       setVulnerability('')
       setImpact('medium')
@@ -85,7 +83,7 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
       id: risk?.id,
       asset_id: assetId,
       asset_name: selectedAsset?.name,
-      owner_id: ownerId,
+      owner_name: ownerName || null,
       threat,
       vulnerability: vulnerability || null,
       impact,
@@ -134,20 +132,13 @@ export function RiskForm({ open, onOpenChange, risk, assets, users, onSave }: Ri
 
             {/* Risk Owner */}
             <div className="space-y-2">
-              <Label>Risk Owner</Label>
-              <Select value={ownerId || 'none'} onValueChange={v => setOwnerId(v === 'none' ? null : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Assign a risk owner" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Unassigned</SelectItem>
-                  {users.map(user => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.full_name || user.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="ownerName">Risk Owner</Label>
+              <Input
+                id="ownerName"
+                value={ownerName}
+                onChange={e => setOwnerName(e.target.value)}
+                placeholder="Enter name of risk owner"
+              />
               <p className="text-xs text-muted-foreground">
                 The person accountable for monitoring and treating this risk (ISO 27001 Clause 6.1.2)
               </p>

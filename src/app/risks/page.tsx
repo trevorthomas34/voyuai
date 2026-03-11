@@ -19,13 +19,12 @@ import { ApprovalDialog } from '@/components/risks/approval-dialog'
 import { riskLevelConfig } from '@/lib/mock-data'
 import { getRisks, createRisk, updateRisk, deleteRisk as deleteRiskApi, approveRisk, type RiskWithAsset } from '@/lib/data/risks'
 import { getAssets, type Asset } from '@/lib/data/assets'
-import { getOrganizationUsers, getCurrentUserRole, type OrgUser } from '@/lib/data/users'
+import { getCurrentUserRole } from '@/lib/data/users'
 import type { RiskLevel, StatusType } from '@/types/database'
 
 export default function RisksPage() {
   const [risks, setRisks] = useState<RiskWithAsset[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
-  const [users, setUsers] = useState<OrgUser[]>([])
   const [userRole, setUserRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -39,14 +38,12 @@ export default function RisksPage() {
 
   // Fetch data on mount
   useEffect(() => {
-    Promise.allSettled([getRisks(), getAssets(), getOrganizationUsers(), getCurrentUserRole()])
-      .then(([risksRes, assetsRes, usersRes, roleRes]) => {
+    Promise.allSettled([getRisks(), getAssets(), getCurrentUserRole()])
+      .then(([risksRes, assetsRes, roleRes]) => {
         if (risksRes.status === 'fulfilled') setRisks(risksRes.value)
         else console.error('Failed to load risks:', risksRes.reason)
         if (assetsRes.status === 'fulfilled') setAssets(assetsRes.value)
         else console.error('Failed to load assets:', assetsRes.reason)
-        if (usersRes.status === 'fulfilled') setUsers(usersRes.value)
-        else console.error('Failed to load users:', usersRes.reason)
         if (roleRes.status === 'fulfilled') setUserRole(roleRes.value)
       })
       .finally(() => setLoading(false))
@@ -270,7 +267,6 @@ export default function RisksPage() {
         onOpenChange={setFormOpen}
         risk={editingRisk}
         assets={assets}
-        users={users}
         onSave={handleSaveRisk}
       />
 

@@ -166,6 +166,7 @@ export type Database = {
           treatment_plan: string | null
           status: 'draft' | 'approved'
           owner_id: string | null
+          owner_name: string | null
           approved_by: string | null
           approved_at: string | null
           created_at: string
@@ -184,6 +185,7 @@ export type Database = {
           treatment_plan?: string | null
           status?: 'draft' | 'approved'
           owner_id?: string | null
+          owner_name?: string | null
           approved_by?: string | null
           approved_at?: string | null
           created_at?: string
@@ -202,6 +204,7 @@ export type Database = {
           treatment_plan?: string | null
           status?: 'draft' | 'approved'
           owner_id?: string | null
+          owner_name?: string | null
           approved_by?: string | null
           approved_at?: string | null
           created_at?: string

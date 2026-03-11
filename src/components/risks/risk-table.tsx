@@ -93,7 +93,7 @@ export function RiskTable({ risks, onEdit, onDelete, onApprove, canApprove = fal
                   )}
                 </div>
               </TableCell>
-              <TableCell>{risk.owner_id || '-'}</TableCell>
+              <TableCell>{risk.owner_name || '-'}</TableCell>
               <TableCell>
                 <Badge className={statusConfig[risk.status].color}>
                   {statusConfig[risk.status].label}
